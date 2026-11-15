@@ -134,3 +134,32 @@ textarea::placeholder { color: #8d819e; }
   .sidebar.collapsed .plus { font-size: 22px; }
   .sidebar.collapsed .profile { justify-content: center; padding-inline: 0; }
 }
+
+
+/* MiniAI mobile navigation and reliable chat scrolling fix */
+html, body { width: 100%; height: 100%; }
+.app-shell { min-height: 0; }
+.chat-panel { min-height: 0; }
+.conversation { min-height: 0; flex: 1 1 auto; overflow-y: auto; overscroll-behavior-y: contain; -webkit-overflow-scrolling: touch; touch-action: pan-y; }
+.sidebar-actions { display: flex; align-items: center; gap: 8px; }
+.sidebar-collapse { display: inline-grid; place-items: center; }
+.sidebar-close, .mobile-menu, .sidebar-scrim { display: none; }
+@media (max-width: 760px) {
+  body { overflow: hidden; }
+  .app-shell { height: 100dvh; min-height: 0; }
+  .chat-panel { height: 100dvh; min-height: 0; display: flex; flex-direction: column; }
+  .topbar { gap: 8px; }
+  .mobile-brand { flex: 0 0 auto; }
+  .model-pill { margin-left: auto; margin-right: 0; }
+  .mobile-menu { display: inline-grid; place-items: center; flex: 0 0 36px; font-size: 19px; }
+  .clear-button { flex: 0 0 36px; }
+  .conversation { min-height: 0; flex: 1 1 auto; overflow-y: scroll; padding-bottom: 24px; }
+  .composer-area { flex: 0 0 auto; position: relative; z-index: 2; }
+  .sidebar { display: flex; position: fixed; z-index: 1001; inset: 0 auto 0 0; width: min( min(86vw, 310px), 310px); height: 100dvh; border-radius: 0 20px 20px 0; border-left: 0; transform: translateX(-105%); transition: transform .25s ease; box-shadow: 18px 0 55px #0008; }
+  .sidebar.open { transform: translateX(0); }
+  .sidebar-close { display: inline-grid; place-items: center; font-size: 22px; }
+  .sidebar-collapse { display: none; }
+  .sidebar-scrim { display: block; position: fixed; z-index: 1000; inset: 0; width: 100%; height: 100%; border: 0; padding: 0; background: #080510a8; opacity: 0; visibility: hidden; transition: opacity .2s ease, visibility .2s ease; }
+  .sidebar-scrim.visible { opacity: 1; visibility: visible; }
+}
+@media (prefers-reduced-motion: reduce) { .sidebar, .sidebar-scrim { transition: none !important; } }
