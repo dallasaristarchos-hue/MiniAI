@@ -1,9 +1,12 @@
 const ALLOWED_ORIGINS = new Set([
   "https://dallasaristarchos-hue.github.io",
-  "https://miniai.dallasaristarchos.workers.dev"
+  "https://miniai.dallasaristarchos.workers.dev",
+  "https://miniai-cfd.pages.dev",
+  "https://miniai-ai.pages.dev"
 ]);
 const WINDOW_MS = 60_000;
 const MAX_REQUESTS_PER_WINDOW = 12;
+const MODEL = "@cf/meta/llama-3.1-8b-instruct-fast";
 const hits = new Map();
 
 function json(data, status = 200, origin = "") {
@@ -41,15 +44,21 @@ export default {
     }
 
     if (url.pathname === "/" || url.pathname === "/health") {
-      return json({ ok: true, service: "MiniAI API", configured: Boolean(env.OPENAI_API_KEY) }, 200, allowedOrigin);
+      return json({
+        ok: true,
+        service: "MiniAI API",
+        configured: Boolean(env.AI && typeof env.AI.run === "function"),
+        provider: "Cloudflare Workers AI",
+        model: MODEL
+      }, 200, allowedOrigin);
     }
 
     if (url.pathname !== "/api/chat" || request.method !== "POST") {
       return json({ error: "Not found" }, 404, allowedOrigin);
     }
     if (!allowedOrigin) return json({ error: "Origin not allowed" }, 403, "");
-    if (!env.OPENAI_API_KEY) {
-      return json({ error: "MiniAI's AI service is not configured yet. Add the OPENAI_API_KEY secret in Cloudflare." }, 503, allowedOrigin);
+    if (!env.AI || typeof env.AI.run !== "function") {
+      return json({ error: "Cloudflare Workers AI is not connected to this Worker yet." }, 503, allowedOrigin);
     }
 
     const ip = request.headers.get("CF-Connecting-IP") || "unknown";
@@ -76,80 +85,46 @@ export default {
       return json({ error: "A message is required." }, 400, allowedOrigin);
     }
 
-    const messages = body.messages.slice(-12).map((item) => ({
+    const messages = body.messages.slice(-10).map((item) => ({
       role: item && item.role === "assistant" ? "assistant" : "user",
-      content: String(item && item.content || "").slice(0, 4000)
+      content: String(item && item.content || "").slice(0, 3000)
     })).filter((item) => item.content.trim());
 
     const totalCharacters = messages.reduce((total, item) => total + item.content.length, 0);
-    if (totalCharacters > 16000) {
-      return json({ error: "That conversation is too long to send at once. Start a new chat or shorten the message." }, 413, allowedOrigin);
+    if (totalCharacters > 12000) {
+      return json({ error: "That conversation is too long. Please start a new chat or shorten your message." }, 413, allowedOrigin);
     }
-
     if (!messages.length || messages[messages.length - 1].role !== "user") {
       return json({ error: "Please send a user message." }, 400, allowedOrigin);
     }
 
     try {
-      const aiController = new AbortController();
-      const aiTimeout = setTimeout(() => aiController.abort(), 38_000);
-      let aiResponse;
-      try {
-        aiResponse = await fetch("https://api.openai.com/v1/responses", {
-        method: "POST",
-        signal: aiController.signal,
-        headers: {
-          "Authorization": `Bearer ${env.OPENAI_API_KEY}`,
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          model: "gpt-4.1-mini",
-          instructions: "You are MiniAI, a capable, accurate and thoughtful general-purpose assistant. Respond in the language the user uses unless they request another language. Answer the actual question first, then explain clearly. Be useful without being needlessly long. Never invent facts, sources, quotations, capabilities, or completed actions; state uncertainty plainly. Use web search for current or time-sensitive information, unfamiliar topics, and whenever the user asks you to find, compare, or verify something. Prefer trustworthy sources, include useful source links when available, and distinguish confirmed facts from estimates. Follow safety rules and age-appropriate guidance. Do not claim to be ChatGPT or OpenAI.",
-          tools: [{ type: "web_search" }],
-          tool_choice: "auto",
-          input: messages,
-          max_output_tokens: 1200,
-          store: false
-        })
-        });
-      } catch (error) {
-        if (error && error.name === "AbortError") {
-          return json({ error: "The AI search took too long. Try asking a more focused question, or try again shortly." }, 504, allowedOrigin);
-        }
-        return json({ error: "MiniAI temporarily couldn't reach its AI provider. Please try again." }, 502, allowedOrigin);
-      } finally {
-        clearTimeout(aiTimeout);
-      }
+      const result = await env.AI.run(MODEL, {
+        messages: [
+          {
+            role: "system",
+            content: "You are MiniAI, a capable, accurate, friendly general-purpose assistant. Reply in the user's language. Answer directly and clearly, usually concisely. Never claim to be ChatGPT or OpenAI. Do not invent facts or pretend to browse the web. If unsure, say so. Keep advice safe and age-appropriate."
+          },
+          ...messages
+        ],
+        max_tokens: 700,
+        temperature: 0.55
+      });
 
-      let result;
-      try {
-        result = await aiResponse.json();
-      } catch {
-        return json({ error: "The AI provider returned an unreadable response. Please try again." }, 502, allowedOrigin);
-      }
-      if (!aiResponse.ok) {
-        if (aiResponse.status === 429) {
-          return json({ error: "MiniAI is busy right now. Please wait a moment and try again." }, 429, allowedOrigin);
-        }
-        if (aiResponse.status === 401 || aiResponse.status === 403) {
-          return json({ error: "MiniAI's AI provider rejected its API credentials. The site owner needs to check the private API configuration." }, 503, allowedOrigin);
-        }
-        return json({ error: "The AI provider couldn't complete that request. Please try again." }, 502, allowedOrigin);
-      }
+      const answer = typeof result?.response === "string"
+        ? result.response
+        : typeof result?.choices?.[0]?.message?.content === "string"
+          ? result.choices[0].message.content
+          : typeof result?.output_text === "string"
+            ? result.output_text
+            : "";
 
-      let answer = result.output_text;
-      if (!answer && Array.isArray(result.output)) {
-        answer = result.output.flatMap((item) => item.content || [])
-          .filter((part) => part.type === "output_text")
-          .map((part) => part.text)
-          .join("\n");
-      }
-      if (!answer) {
+      if (!answer.trim()) {
         return json({ error: "MiniAI did not receive a usable answer. Please try again." }, 502, allowedOrigin);
       }
       return json({ reply: answer }, 200, allowedOrigin);
-    } catch {
-      return json({ error: "MiniAI could not reach the AI service. Please try again." }, 502, allowedOrigin);
+    } catch (error) {
+      return json({ error: "MiniAI's free AI service is temporarily busy. Please try again shortly." }, 502, allowedOrigin);
     }
   }
 };
