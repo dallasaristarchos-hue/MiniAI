@@ -1,167 +1,48 @@
 const API_URL = "https://miniai-api.dallasaristarchos.workers.dev/api/chat";
+const STORAGE_KEY = "miniai.v2.conversations";
+const ACTIVE_KEY = "miniai.v2.activeConversation";
+const $ = (selector) => document.querySelector(selector);
+const form = $("#chatForm"), input = $("#messageInput"), conversation = $("#conversation");
+const messagesEl = $("#messages"), sendButton = $("#sendButton");
+let chats = loadChats(), activeId = localStorage.getItem(ACTIVE_KEY);
+let busy = false, toastTimer;
 
-const form = document.querySelector("#chatForm");
-const input = document.querySelector("#messageInput");
-const conversation = document.querySelector("#conversation");
-const sendButton = document.querySelector("#sendButton");
-const welcomeMarkup = document.querySelector("#welcome")?.outerHTML || "";
-const chatHistory = [];
+function uid(){return globalThis.crypto?.randomUUID?.() || `chat-${Date.now()}-${Math.random().toString(36).slice(2,8)}`;}
+function loadChats(){try{const value=JSON.parse(localStorage.getItem(STORAGE_KEY)||"[]");return Array.isArray(value)?value.filter(c=>c&&c.id&&Array.isArray(c.messages)):[]}catch{return []}}
+function save(){try{localStorage.setItem(STORAGE_KEY,JSON.stringify(chats));if(activeId)localStorage.setItem(ACTIVE_KEY,activeId)}catch{showToast("Storage is full. Export an older chat to keep it safe.")}}
+function currentChat(){return chats.find(c=>c.id===activeId)}
+function makeChat(){const chat={id:uid(),title:"New conversation",updatedAt:Date.now(),messages:[]};chats.unshift(chat);activeId=chat.id;save();renderAll();input.focus();closeSidebar();}
+function showToast(message){const el=$("#toast");el.textContent=message;el.classList.add("visible");clearTimeout(toastTimer);toastTimer=setTimeout(()=>el.classList.remove("visible"),2300)}
+function escapeHTML(value){return String(value).replace(/[&<>"']/g,ch=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[ch]));}
+function safeLink(url){try{const parsed=new URL(url);return ["https:","http:"].includes(parsed.protocol)?parsed.href:null}catch{return null}}
+function inlineMarkdown(value){let out=escapeHTML(value);out=out.replace(/`([^`]+)`/g,"<code>$1</code>");out=out.replace(/\*\*(.+?)\*\*/g,"<strong>$1</strong>").replace(/(?<!\*)\*([^*\n]+)\*(?!\*)/g,"<em>$1</em>");out=out.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g,(all,label,url)=>{const safe=safeLink(url);return safe?`<a href="${escapeHTML(safe)}" target="_blank" rel="noopener noreferrer">${label}</a>`:label});out=out.replace(/(^|\s)(https?:\/\/[^\s<]+)/g,(all,space,url)=>{const clean=url.replace(/[.,!?;:]+$/g,"");const safe=safeLink(clean);return safe?`${space}<a href="${escapeHTML(safe)}" target="_blank" rel="noopener noreferrer">${escapeHTML(clean)}</a>${url.slice(clean.length)}`:all});return out}
+function markdownHTML(text){const chunks=String(text).split(/```([\s\S]*?)```/g);return chunks.map((chunk,index)=>{if(index%2===1){const lines=chunk.replace(/^\n|\n$/g,"").split("\n");let lang="code";if(lines.length&&/^[a-zA-Z0-9_+-]{1,20}$/.test(lines[0].trim()))lang=lines.shift().trim();const code=lines.join("\n");return `<div class="code-wrap"><div class="code-head"><span>${escapeHTML(lang)}</span><button class="code-copy" type="button" data-action="copy-code">Copy code</button></div><pre>${escapeHTML(code)}</pre></div>`;}const lines=chunk.split("\n");let html="",listType=null;const closeList=()=>{if(listType){html+=`</${listType}>`;listType=null}};for(const line of lines){const trimmed=line.trim();const bullet=trimmed.match(/^[-*]\s+(.+)/),number=trimmed.match(/^\d+[.)]\s+(.+)/);if(bullet||number){const type=bullet?"ul":"ol";if(listType!==type){closeList();html+=`<${type}>`;listType=type}html+=`<li>${inlineMarkdown((bullet||number)[1])}</li>`;continue}closeList();if(!trimmed){html+="<br>";continue}const heading=trimmed.match(/^#{1,3}\s+(.+)/);if(heading){html+=`<p><strong>${inlineMarkdown(heading[1])}</strong></p>`;continue}if(trimmed.startsWith("> ")){html+=`<blockquote>${inlineMarkdown(trimmed.slice(2))}</blockquote>`;continue}html+=`<p>${inlineMarkdown(line)}</p>`;}closeList();return html;}).join("")}
+function renderMessage(message){const row=document.createElement("article");row.className=`message ${message.role}`;row.__messageText=message.content;row.__failed=Boolean(message.failed);const avatar=document.createElement("div");avatar.className="avatar";avatar.textContent=message.role==="user"?"Y":"✦";avatar.setAttribute("aria-hidden","true");const content=document.createElement("div");content.className="message-content";const bubble=document.createElement("div");bubble.className="bubble";bubble.innerHTML=markdownHTML(message.content);content.append(bubble);const actions=document.createElement("div");actions.className="message-actions";const copy=document.createElement("button");copy.type="button";copy.dataset.action="copy-message";copy.textContent="Copy";actions.append(copy);if(message.failed){const retry=document.createElement("button");retry.type="button";retry.dataset.action="retry";retry.textContent="Try again";actions.append(retry)}content.append(actions);row.append(avatar,content);return row;}
+function renderHistory(){const list=$("#historyList"),query=$("#historySearch").value.trim().toLowerCase();list.replaceChildren();const visible=[...chats].sort((a,b)=>b.updatedAt-a.updatedAt).filter(c=>!query||c.title.toLowerCase().includes(query)||c.messages.some(m=>m.content.toLowerCase().includes(query)));if(!visible.length){const empty=document.createElement("div");empty.className="history-empty";empty.textContent=query?"No matching conversations.":"Your conversations will appear here.";list.append(empty);return}for(const chat of visible){const item=document.createElement("div");item.className=`history-item${chat.id===activeId?" active":""}`;item.tabIndex=0;item.setAttribute("role","button");item.setAttribute("aria-label",`Open ${chat.title}`);const icon=document.createElement("span");icon.className="history-icon";icon.textContent="◷";const title=document.createElement("span");title.className="history-title";title.textContent=chat.title;const del=document.createElement("button");del.className="history-delete";del.type="button";del.dataset.deleteChat=chat.id;del.setAttribute("aria-label",`Delete ${chat.title}`);del.textContent="×";item.append(icon,title,del);item.addEventListener("click",e=>{if(e.target.closest("[data-delete-chat]"))return;activeId=chat.id;save();renderAll();closeSidebar()});item.addEventListener("keydown",e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();activeId=chat.id;save();renderAll();closeSidebar()}});list.append(item)}}
+function renderConversation(){const chat=currentChat();messagesEl.replaceChildren();const welcome=$("#welcome");const hasMessages=Boolean(chat?.messages.length);welcome.hidden=hasMessages;if(chat)chat.messages.forEach(message=>messagesEl.append(renderMessage(message)));conversation.scrollTop=conversation.scrollHeight;}
+function renderAll(){renderHistory();renderConversation()}
+function titleFrom(text){const clean=text.replace(/\s+/g," ").trim();return clean.length>34?clean.slice(0,34).trim()+"…":clean||"New conversation"}
+function setBusy(value){busy=value;sendButton.disabled=value;sendButton.innerHTML=value?"<span>…</span>":"<span>↑</span>";sendButton.setAttribute("aria-label",value?"Waiting for MiniAI":"Send message")}
+function appendMessage(role,content,extra={}){const chat=currentChat();if(!chat)return null;const message={role,content,createdAt:Date.now(),...extra};chat.messages.push(message);chat.updatedAt=Date.now();if(role==="user"&&chat.title==="New conversation")chat.title=titleFrom(content);save();renderAll();return message}
+function showTyping(){const row=document.createElement("article");row.className="message";row.id="typingIndicator";row.innerHTML='<div class="avatar" aria-hidden="true">✦</div><div class="message-content"><div class="bubble"><span class="typing" aria-label="MiniAI is thinking"><i></i><i></i><i></i></span></div></div>';messagesEl.append(row);conversation.scrollTop=conversation.scrollHeight}
+function cleanHistory(){return (currentChat()?.messages||[]).filter(m=>!m.failed&&["user","assistant"].includes(m.role)).slice(-12).map(m=>({role:m.role,content:m.content}))}
+async function askMiniAI(){const chat=currentChat();if(!chat)return;const controller=new AbortController();const timeout=setTimeout(()=>controller.abort(),60000);showTyping();try{let response;for(let attempt=0;attempt<2;attempt++){try{response=await fetch(API_URL,{method:"POST",mode:"cors",cache:"no-store",headers:{"Content-Type":"application/json"},body:JSON.stringify({messages:cleanHistory()}),signal:controller.signal});break}catch(error){if(attempt===1||error.name==="AbortError")throw error;await new Promise(resolve=>setTimeout(resolve,650))}}const data=await response.json().catch(()=>({}));if(!response.ok){const error=new Error(data.error||`MiniAI service error (${response.status}).`);error.status=response.status;if([502,503,504].includes(response.status))throw error;throw error}const reply=String(data.reply||"").trim();if(!reply)throw new Error("MiniAI returned an empty answer. Please try again.");$("#typingIndicator")?.remove();appendMessage("assistant",reply)}catch(error){$("#typingIndicator")?.remove();let message=error.name==="AbortError"?"MiniAI took too long to respond. Please try again.":error.status===429?"MiniAI is receiving too many requests. Wait a minute and try again.":error instanceof TypeError?"MiniAI couldn't reach its server. Check your connection and try again.":(error.message||"Something went wrong. Please try again.");appendMessage("assistant",message,{failed:true});}finally{clearTimeout(timeout);setBusy(false);input.focus()}}
+async function sendMessage(text){const value=String(text||"").trim();if(!value||busy)return;if(!currentChat())makeChat();appendMessage("user",value);input.value="";input.style.height="auto";setBusy(true);await askMiniAI()}
+function retryLast(){if(busy)return;const chat=currentChat();if(!chat)return;const last=chat.messages.at(-1);if(last?.failed)chat.messages.pop();else if(chat.messages.at(-1)?.role!=="user")return;save();renderAll();setBusy(true);askMiniAI()}
+function resetCurrentChat(){const chat=currentChat();if(!chat)return;chat.messages=[];chat.title="New conversation";chat.updatedAt=Date.now();save();renderAll();input.focus();showToast("Conversation cleared")}
+function deleteChat(id){const index=chats.findIndex(c=>c.id===id);if(index<0)return;chats.splice(index,1);if(activeId===id){activeId=chats[0]?.id||null;if(!activeId){makeChat();return}}save();renderAll();showToast("Conversation deleted")}
+function exportChat(){const chat=currentChat();if(!chat||!chat.messages.length){showToast("There is no conversation to export yet");return}const body=chat.messages.map(m=>`${m.role==="user"?"You":"MiniAI"}\n${m.content}`).join("\n\n────────────────────\n\n");const blob=new Blob([`MiniAI — ${chat.title}\n\n${body}`],{type:"text/plain;charset=utf-8"});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download=`miniai-${chat.title.toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"")||"conversation"}.txt`;a.click();URL.revokeObjectURL(url);showToast("Conversation exported")}
+function openSidebar(){$("#sidebar").classList.add("open");$("#sidebarScrim").classList.add("visible");$("#mobileMenu").setAttribute("aria-expanded","true")}
+function closeSidebar(){$("#sidebar").classList.remove("open");$("#sidebarScrim").classList.remove("visible");$("#mobileMenu").setAttribute("aria-expanded","false")}
+async function checkConnection(){const dot=$("#connectionDot"),side=$("#sidebarStatus"),label=$("#connectionLabel");try{const response=await fetch(API_URL.replace("/api/chat","/health"),{cache:"no-store"});const data=await response.json();const online=response.ok&&data.ok;dot.classList.toggle("offline",!online);side.classList.toggle("offline",!online);label.textContent=online?"MiniAI":"Reconnecting";side.title=online?"API reachable":"API unavailable"}catch{dot.classList.add("offline");side.classList.add("offline");label.textContent="MiniAI";side.title="Connection check failed"}}
 
-function getMessageList() {
-  let list = conversation.querySelector(".messages");
-  if (!list) {
-    list = document.createElement("div");
-    list.className = "messages";
-    conversation.append(list);
-  }
-  return list;
-}
-
-function addMessage(text, sender) {
-  const row = document.createElement("div");
-  row.className = `message ${sender}`;
-  const avatar = document.createElement("div");
-  avatar.className = "avatar";
-  avatar.textContent = sender === "user" ? "Y" : "✦";
-  avatar.setAttribute("aria-hidden", "true");
-  const bubble = document.createElement("div");
-  bubble.className = "bubble";
-  bubble.textContent = text;
-  row.append(avatar, bubble);
-  getMessageList().append(row);
-  conversation.scrollTop = conversation.scrollHeight;
-}
-
-function showTyping() {
-  const row = document.createElement("div");
-  row.className = "message";
-  row.id = "typingIndicator";
-  row.innerHTML = '<div class="avatar" aria-hidden="true">✦</div><div class="bubble"><span class="typing" aria-label="MiniAI is thinking"><i></i><i></i><i></i></span></div>';
-  getMessageList().append(row);
-  conversation.scrollTop = conversation.scrollHeight;
-}
-
-async function requestMiniAI(payload) {
-  let lastError;
-  for (let attempt = 0; attempt < 2; attempt += 1) {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 45000);
-    try {
-      const response = await fetch(API_URL, {
-        method: "POST",
-        mode: "cors",
-        cache: "no-store",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-        signal: controller.signal
-      });
-      const data = await response.json().catch(() => ({}));
-      if (response.ok) return data;
-      const error = new Error(data.error || `MiniAI service error (${response.status}).`);
-      error.status = response.status;
-      if (attempt === 0 && [502, 503, 504].includes(response.status)) {
-        lastError = error;
-        await new Promise(resolve => setTimeout(resolve, 700));
-        continue;
-      }
-      throw error;
-    } catch (error) {
-      lastError = error;
-      if (error.name === "AbortError") {
-        if (attempt === 0) continue;
-        throw new Error("MiniAI took too long to respond. Please try again in a moment.");
-      }
-      if (error instanceof TypeError && attempt === 0) {
-        await new Promise(resolve => setTimeout(resolve, 700));
-        continue;
-      }
-      throw error;
-    } finally {
-      clearTimeout(timeout);
-    }
-  }
-  if (lastError instanceof TypeError) {
-    throw new Error("MiniAI couldn't reach its server. Check your internet connection and try again.");
-  }
-  throw lastError || new Error("MiniAI couldn't complete that request. Please try again.");
-}
-
-async function sendMessage(text) {
-  const message = String(text || "").trim();
-  if (!message || sendButton.disabled) return;
-  document.querySelector("#welcome")?.remove();
-  addMessage(message, "user");
-  chatHistory.push({ role: "user", content: message });
-  input.value = "";
-  input.style.height = "auto";
-  sendButton.disabled = true;
-  showTyping();
-  try {
-    const data = await requestMiniAI({ messages: chatHistory.slice(-12) });
-    document.querySelector("#typingIndicator")?.remove();
-    const reply = String(data.reply || "").trim();
-    if (!reply) throw new Error("MiniAI returned an empty answer. Please try asking again.");
-    chatHistory.push({ role: "assistant", content: reply });
-    addMessage(reply, "assistant");
-  } catch (error) {
-    document.querySelector("#typingIndicator")?.remove();
-    const message = error.status === 429
-      ? "MiniAI is receiving too many requests. Please wait a minute and try again."
-      : (error.message || "MiniAI couldn't connect. Please try again.");
-    addMessage(message, "assistant");
-  } finally {
-    sendButton.disabled = false;
-    input.focus();
-  }
-}
-
-form.addEventListener("submit", (event) => {
-  event.preventDefault();
-  sendMessage(input.value);
-});
-input.addEventListener("input", () => {
-  input.style.height = "auto";
-  input.style.height = Math.min(input.scrollHeight, 130) + "px";
-});
-input.addEventListener("keydown", (event) => {
-  if (event.key === "Enter" && !event.shiftKey) {
-    event.preventDefault();
-    form.requestSubmit();
-  }
-});
-document.addEventListener("click", (event) => {
-  const suggestion = event.target.closest(".suggestion");
-  if (suggestion?.dataset.prompt) sendMessage(suggestion.dataset.prompt);
-});
-
-function resetChat() {
-  conversation.innerHTML = welcomeMarkup;
-  chatHistory.length = 0;
-  input.value = "";
-  input.style.height = "auto";
-  closeSidebar();
-  input.focus();
-}
-
-function openSidebar() {
-  document.querySelector("#sidebar")?.classList.add("open");
-  document.querySelector("#sidebarScrim")?.classList.add("visible");
-}
-function closeSidebar() {
-  document.querySelector("#sidebar")?.classList.remove("open");
-  document.querySelector("#sidebarScrim")?.classList.remove("visible");
-}
-document.querySelector("#newChat")?.addEventListener("click", resetChat);
-document.querySelector("#mobileMenu")?.addEventListener("click", openSidebar);
-document.querySelector("#closeSidebar")?.addEventListener("click", closeSidebar);
-document.querySelector("#sidebarScrim")?.addEventListener("click", closeSidebar);
-document.querySelector("#collapseSidebar")?.addEventListener("click", () => {
-  document.querySelector("#sidebar")?.classList.toggle("collapsed");
-});
-document.addEventListener("keydown", (event) => {
-  if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
-    event.preventDefault();
-    resetChat();
-  }
-  if (event.key === "Escape") closeSidebar();
-});
+form.addEventListener("submit",event=>{event.preventDefault();sendMessage(input.value)});
+input.addEventListener("input",()=>{input.style.height="auto";input.style.height=Math.min(input.scrollHeight,150)+"px"});
+input.addEventListener("keydown",event=>{if(event.key==="Enter"&&!event.shiftKey){event.preventDefault();form.requestSubmit()}});
+$("#newChat").addEventListener("click",makeChat);$("#mobileMenu").addEventListener("click",openSidebar);$("#closeSidebar").addEventListener("click",closeSidebar);$("#sidebarScrim").addEventListener("click",closeSidebar);$("#clearChat").addEventListener("click",resetCurrentChat);$("#exportChat").addEventListener("click",exportChat);
+$("#searchToggle").addEventListener("click",()=>{$("#historySearchWrap").classList.toggle("visible");if($("#historySearchWrap").classList.contains("visible"))$("#historySearch").focus();else{$("#historySearch").value="";renderHistory()}});
+$("#historySearch").addEventListener("input",renderHistory);
+$("#historyList").addEventListener("click",event=>{const button=event.target.closest("[data-delete-chat]");if(button){event.stopPropagation();deleteChat(button.dataset.deleteChat)}});
+messagesEl.addEventListener("click",async event=>{const button=event.target.closest("[data-action]");if(!button)return;const row=button.closest(".message");if(button.dataset.action==="copy-message"){try{await navigator.clipboard.writeText(row.__messageText);showToast("Copied to clipboard")}catch{showToast("Clipboard unavailable in this browser")}}if(button.dataset.action==="copy-code"){const code=row.querySelector("pre")?.textContent||"";try{await navigator.clipboard.writeText(code);button.textContent="Copied";setTimeout(()=>button.textContent="Copy code",1300)}catch{showToast("Clipboard unavailable")}}if(button.dataset.action==="retry")retryLast()});
+document.addEventListener("keydown",event=>{if((event.ctrlKey||event.metaKey)&&event.key.toLowerCase()==="k"){event.preventDefault();makeChat()}if(event.key==="Escape")closeSidebar()});
+if(!currentChat()){const chat={id:uid(),title:"New conversation",updatedAt:Date.now(),messages:[]};chats.unshift(chat);activeId=chat.id;save()}renderAll();checkConnection();

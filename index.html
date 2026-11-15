@@ -2,80 +2,68 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#100d19">
-  <meta name="description" content="MiniAI — your personal AI chat space.">
-  <title>MiniAI — Your AI chat space</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#100b1c">
+  <meta name="description" content="MiniAI — a thoughtful AI chat space for ideas, questions and discovery.">
+  <title>MiniAI — Think beyond.</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=20261116b">
+  <link rel="stylesheet" href="style.css?v=20261116d">
 </head>
 <body>
   <div class="app-shell">
     <aside class="sidebar" id="sidebar" aria-label="Chat navigation">
       <div class="sidebar-top">
-        <a class="brand" href="#" aria-label="MiniAI home">
-          <span class="brand-mark">✦</span>
-          <span>mini<span class="brand-ai">AI</span></span>
-        </a>
-        <div class="sidebar-actions"><button class="icon-button sidebar-collapse" id="collapseSidebar" type="button" aria-label="Collapse sidebar">☰</button><button class="icon-button sidebar-close" id="closeSidebar" type="button" aria-label="Close menu">×</button></div>
+        <a class="brand" href="#" aria-label="MiniAI home"><span class="brand-mark">✦</span><span>mini<span class="brand-ai">AI</span></span></a>
+        <button class="icon-button sidebar-close" id="closeSidebar" type="button" aria-label="Close menu">×</button>
       </div>
-
-      <button class="new-chat" id="newChat" type="button">
-        <span class="new-chat-icon">＋</span>
-        <span>New chat</span>
-        <kbd>⌘ K</kbd>
-      </button>
-
-      <div class="sidebar-section">
-        <p class="section-label">YOUR SPACE</p>
-        <div class="history-item active"><span class="history-icon">◷</span><span>Today’s conversation</span></div>
-      </div>
-
+      <button class="new-chat" id="newChat" type="button"><span class="new-chat-icon">＋</span><span>New chat</span><kbd>⌘ K</kbd></button>
+      <div class="history-heading"><span class="section-label">YOUR CONVERSATIONS</span><button class="icon-button tiny" id="searchToggle" type="button" aria-label="Search chats" title="Search chats">⌕</button></div>
+      <label class="history-search" id="historySearchWrap"><span>⌕</span><input id="historySearch" type="search" placeholder="Search chats…" autocomplete="off"></label>
+      <nav class="history-list" id="historyList" aria-label="Recent conversations"></nav>
       <div class="sidebar-bottom">
-        <div class="upgrade-card">
-          <span class="upgrade-sparkle">✧</span>
-          <div><strong>Made with curiosity</strong><small>Your little AI space.</small></div>
-        </div>
-        <div class="profile-row">
-          <div class="profile-avatar">M</div>
-          <div class="profile-copy"><strong>MiniAI</strong><small>Personal assistant</small></div>
-          <span class="online-dot" title="Connected"></span>
-        </div>
+        <div class="upgrade-card"><span class="upgrade-sparkle">✧</span><div><strong>Made with curiosity</strong><small>A little space for big ideas.</small></div></div>
+        <div class="profile-row"><div class="profile-avatar">M</div><div class="profile-copy"><strong>MiniAI</strong><small>Personal assistant</small></div><span class="online-dot" id="sidebarStatus" title="Checking connection"></span></div>
       </div>
     </aside>
 
     <main class="chat-panel">
       <header class="topbar">
-        <button class="mobile-brand" id="mobileNewChat" type="button" aria-label="Start a new chat">
-          <span class="brand-mark">✦</span><span>MiniAI</span>
-        </button>
-        <div class="model-pill"><span class="status-dot"></span><span>MiniAI</span><span class="model-tag">GEMMA</span></div>
-        <button class="icon-button mobile-menu" id="mobileMenu" type="button" aria-label="Open menu" aria-controls="sidebar" aria-expanded="false">☰</button>
-        <button class="icon-button clear-button" id="clearChat" type="button" aria-label="Clear conversation" title="Clear conversation">⌫</button>
+        <div class="topbar-left">
+          <button class="icon-button mobile-menu" id="mobileMenu" type="button" aria-label="Open menu" aria-controls="sidebar" aria-expanded="false">☰</button>
+          <div class="mobile-brand"><span class="brand-mark">✦</span><span>MiniAI</span></div>
+        </div>
+        <div class="model-pill"><span class="status-dot" id="connectionDot"></span><span id="connectionLabel">MiniAI</span><span class="model-tag">AI CHAT</span></div>
+        <div class="topbar-actions">
+          <button class="icon-button" id="exportChat" type="button" aria-label="Export conversation" title="Export conversation">↧</button>
+          <button class="icon-button clear-button" id="clearChat" type="button" aria-label="Clear conversation" title="Clear conversation">⌫</button>
+        </div>
       </header>
 
       <section class="conversation" id="conversation" aria-live="polite" aria-label="Chat messages">
         <div class="welcome" id="welcome">
-          <div class="welcome-icon">✦</div>
+          <div class="orb-wrap" aria-hidden="true"><div class="orb-halo"></div><div class="orb"><span class="orb-core">✦</span></div><i class="orb-spark spark-one"></i><i class="orb-spark spark-two"></i><i class="orb-spark spark-three"></i></div>
           <p class="eyebrow">A LITTLE SPACE FOR BIG IDEAS</p>
-          <h1>What can I help<br><span>you with today?</span></h1>
-          <p class="welcome-copy">Ask a question, explore an idea, or just start a conversation.</p>
-</div>
+          <h1>Think beyond<br><span>the ordinary.</span></h1>
+          <p class="welcome-copy">A question, a curiosity, a late-night idea. Start anywhere — we'll figure it out together.</p>
+          <div class="welcome-meta"><span class="meta-line"></span><span>YOUR AI SPACE</span><span class="meta-line"></span></div>
+        </div>
+        <div class="messages" id="messages" aria-label="Conversation messages"></div>
       </section>
 
       <footer class="composer-area">
         <form class="composer" id="chatForm">
           <label class="sr-only" for="messageInput">Message MiniAI</label>
-          <textarea id="messageInput" rows="1" maxlength="2000" placeholder="Message MiniAI..." autocomplete="off"></textarea>
-          <button class="send-button" id="sendButton" type="submit" aria-label="Send message"><span>↑</span></button>
+          <textarea id="messageInput" rows="1" maxlength="6000" placeholder="Ask MiniAI anything…" autocomplete="off"></textarea>
+          <div class="composer-tools"><span class="input-hint">↵ send · shift + ↵ new line</span><button class="send-button" id="sendButton" type="submit" aria-label="Send message"><span>↑</span></button></div>
         </form>
-        <p class="disclaimer">MiniAI can make mistakes. Check important information.</p>
+        <p class="disclaimer">MiniAI can make mistakes. Verify important information. <span>✦</span></p>
       </footer>
     </main>
   </div>
   <button class="sidebar-scrim" id="sidebarScrim" type="button" aria-label="Close navigation menu"></button>
-  <script src="script.js?v=20261116c"></script>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <script src="script.js?v=20261116d"></script>
 </body>
 </html>

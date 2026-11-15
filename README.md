@@ -1,6 +1,6 @@
-# MiniAI 💜
+# MiniAI ✦
 
-A purple-themed, mobile-friendly chatbot interface built with plain HTML, CSS and JavaScript.
+A polished, mobile-first AI chat space with a pink-violet visual identity, persistent conversations, and a server-side AI connection.
 
 ## Live site
 
@@ -8,29 +8,30 @@ https://dallasaristarchos-hue.github.io/MiniAI/
 
 ## Features
 
-- Responsive layout for phones, tablets and desktops
-- Purple and lavender visual theme
-- Chat bubbles, typing indicator and sample prompt buttons
-- Enter to send, Shift + Enter for a new line
-- New-chat and clear-chat controls
-- Secure server-side AI connection through a Cloudflare Worker
+- Responsive desktop and mobile interface with a custom animated violet-pink orb
+- Persistent conversation history saved locally in the browser
+- Search, switch, and delete conversations
+- Copy messages and code blocks; export conversations as text
+- Markdown-style answers with safe external links and code blocks
+- Retry failed responses and check API connection status
+- Enter to send, Shift + Enter for a new line, and Ctrl/Cmd + K for a new chat
+- Server-side AI requests through a Cloudflare Worker; API keys never enter browser code
 
 ## Architecture
 
-- `index.html` — page structure
-- `style.css` — responsive purple design
-- `script.js` — chat interface and API requests
+- `index.html` — application structure
+- `style.css` — responsive visual system and animations
+- `script.js` — chat interface, local conversation storage, and API requests
 - `worker.js` — Cloudflare Worker backend
 
-The browser calls the Cloudflare Worker at `https://miniai-api.dallasaristarchos.workers.dev/api/chat`. The Worker calls the OpenAI Responses API. The private API key belongs in a Cloudflare Worker secret named `OPENAI_API_KEY`; it must never be added to this repository or browser JavaScript.
+The browser calls `https://miniai-api.dallasaristarchos.workers.dev/api/chat`. The Worker calls the OpenAI Responses API and can use web search. The private API key belongs in a Cloudflare Worker secret named `OPENAI_API_KEY`; never add it to this repository or browser JavaScript.
 
 ## Configure the API secret
 
-In Cloudflare, open Workers & Pages → miniai-api → Settings → Variables and Secrets → Add → Secret. Set the name to `OPENAI_API_KEY` and paste the API key into the Cloudflare secret value field. Do not commit the key to GitHub.
+In Cloudflare, open Workers & Pages → `miniai-api` → Settings → Variables and Secrets → Add → Secret. Set the name to `OPENAI_API_KEY` and enter the key in the Cloudflare secret field. Do not commit the key to GitHub.
 
 OpenAI API usage may incur charges. Set a low usage budget and usage limits before enabling the secret.
 
 ## Deploying the frontend
 
-GitHub Pages is configured to publish the root of the `main` branch:
-https://dallasaristarchos-hue.github.io/MiniAI/
+GitHub Pages publishes the root of the `main` branch: https://dallasaristarchos-hue.github.io/MiniAI/

@@ -78,8 +78,13 @@ export default {
 
     const messages = body.messages.slice(-12).map((item) => ({
       role: item && item.role === "assistant" ? "assistant" : "user",
-      content: String(item && item.content || "").slice(0, 3000)
+      content: String(item && item.content || "").slice(0, 4000)
     })).filter((item) => item.content.trim());
+
+    const totalCharacters = messages.reduce((total, item) => total + item.content.length, 0);
+    if (totalCharacters > 16000) {
+      return json({ error: "That conversation is too long to send at once. Start a new chat or shorten the message." }, 413, allowedOrigin);
+    }
 
     if (!messages.length || messages[messages.length - 1].role !== "user") {
       return json({ error: "Please send a user message." }, 400, allowedOrigin);
@@ -94,11 +99,12 @@ export default {
         },
         body: JSON.stringify({
           model: "gpt-4.1-mini",
-          instructions: "You are MiniAI, a capable, accurate and helpful general-purpose assistant. Answer the user's actual question directly, explain uncertainty instead of guessing, and give enough detail to be useful. Use web search when information may be current, time-sensitive, obscure, or when the user asks you to find or verify something. Prefer reliable sources and distinguish verified facts from estimates. Do not claim to be ChatGPT or OpenAI.",
+          instructions: "You are MiniAI, a capable, accurate and thoughtful general-purpose assistant. Respond in the language the user uses unless they request another language. Answer the actual question first, then explain clearly. Be useful without being needlessly long. Never invent facts, sources, quotations, capabilities, or completed actions; state uncertainty plainly. Use web search for current or time-sensitive information, unfamiliar topics, and whenever the user asks you to find, compare, or verify something. Prefer trustworthy sources, include useful source links when available, and distinguish confirmed facts from estimates. Follow safety rules and age-appropriate guidance. Do not claim to be ChatGPT or OpenAI.",
           tools: [{ type: "web_search" }],
           tool_choice: "auto",
           input: messages,
-          max_output_tokens: 900
+          max_output_tokens: 1400,
+          store: false
         })
       });
 
