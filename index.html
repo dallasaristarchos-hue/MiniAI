@@ -3,47 +3,69 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#100b1c">
-  <meta name="description" content="MiniAI — a tiny chat space with a big imagination.">
-  <title>MiniAI — Your little AI space</title>
+  <meta name="theme-color" content="#100d19">
+  <meta name="description" content="MiniAI — your personal AI chat space.">
+  <title>MiniAI — Your AI chat space</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <div class="ambient ambient-one"></div><div class="ambient ambient-two"></div>
   <div class="app-shell">
     <aside class="sidebar" aria-label="Chat navigation">
-      <a class="brand" href="#" aria-label="MiniAI home"><span class="brand-mark">✳</span><span>mini<span class="brand-ai">AI</span></span></a>
-      <button class="new-chat" id="newChat"><span>＋</span> New chat</button>
-      <div class="side-label">YOUR SPACE</div>
-      <div class="history-item active"><span>◌</span> <span>Today’s conversation</span></div>
+      <div class="sidebar-top">
+        <a class="brand" href="#" aria-label="MiniAI home">
+          <span class="brand-mark">✦</span>
+          <span>mini<span class="brand-ai">AI</span></span>
+        </a>
+        <button class="icon-button sidebar-collapse" type="button" aria-label="Sidebar menu">☰</button>
+      </div>
+
+      <button class="new-chat" id="newChat" type="button">
+        <span class="new-chat-icon">＋</span>
+        <span>New chat</span>
+        <kbd>⌘ K</kbd>
+      </button>
+
+      <div class="sidebar-section">
+        <p class="section-label">YOUR SPACE</p>
+        <div class="history-item active"><span class="history-icon">◷</span><span>Today’s conversation</span></div>
+      </div>
+
       <div class="sidebar-bottom">
-        <div class="profile-orb">M</div>
-        <div class="profile-copy"><strong>MiniAI</strong><small>Personal assistant</small></div>
-        <span class="online-dot" title="Demo mode"></span>
+        <div class="upgrade-card">
+          <span class="upgrade-sparkle">✧</span>
+          <div><strong>Made with curiosity</strong><small>Your little AI space.</small></div>
+        </div>
+        <div class="profile-row">
+          <div class="profile-avatar">M</div>
+          <div class="profile-copy"><strong>MiniAI</strong><small>Personal assistant</small></div>
+          <span class="online-dot" title="Connected"></span>
+        </div>
       </div>
     </aside>
 
     <main class="chat-panel">
       <header class="topbar">
-        <button class="mobile-brand" id="mobileNewChat" aria-label="Start new chat">✳ <span>MiniAI</span></button>
-        <div class="model-pill"><span class="status-dot"></span> MiniAI <span class="model-tag">DEMO</span></div>
-        <button class="icon-button" id="clearChat" aria-label="Clear conversation" title="Clear conversation">↻</button>
+        <button class="mobile-brand" id="mobileNewChat" type="button" aria-label="Start a new chat">
+          <span class="brand-mark">✦</span><span>MiniAI</span>
+        </button>
+        <div class="model-pill"><span class="status-dot"></span><span>MiniAI</span><span class="model-tag">GEMMA</span></div>
+        <button class="icon-button clear-button" id="clearChat" type="button" aria-label="Clear conversation" title="Clear conversation">⌫</button>
       </header>
 
       <section class="conversation" id="conversation" aria-live="polite" aria-label="Chat messages">
         <div class="welcome" id="welcome">
-          <div class="welcome-icon">✳</div>
+          <div class="welcome-icon">✦</div>
           <p class="eyebrow">A LITTLE SPACE FOR BIG IDEAS</p>
-          <h1>Hey there.<br><span>What’s on your mind?</span></h1>
-          <p class="welcome-copy">Questions, ideas, plans, random thoughts — let's explore them together.</p>
+          <h1>What can I help<br><span>you with today?</span></h1>
+          <p class="welcome-copy">Ask a question, explore an idea, or just start a conversation.</p>
           <div class="suggestions">
-            <button class="suggestion" data-prompt="Give me three creative app ideas">✦ <span>Brainstorm ideas</span><b>↗</b></button>
-            <button class="suggestion" data-prompt="Explain artificial intelligence in simple words">⌘ <span>Explain something</span><b>↗</b></button>
-            <button class="suggestion" data-prompt="Help me plan a productive afternoon">◷ <span>Plan my day</span><b>↗</b></button>
-            <button class="suggestion" data-prompt="Tell me a surprising science fact">✧ <span>Surprise me</span><b>↗</b></button>
+            <button class="suggestion" data-prompt="Give me three creative app ideas"><span class="suggestion-icon">✧</span><span><strong>Brainstorm ideas</strong><small>Explore something new</small></span><span class="suggestion-arrow">↗</span></button>
+            <button class="suggestion" data-prompt="Explain artificial intelligence in simple words"><span class="suggestion-icon">⌘</span><span><strong>Explain a concept</strong><small>Make something make sense</small></span><span class="suggestion-arrow">↗</span></button>
+            <button class="suggestion" data-prompt="Help me plan a productive afternoon"><span class="suggestion-icon">◷</span><span><strong>Make a plan</strong><small>Turn thoughts into action</small></span><span class="suggestion-arrow">↗</span></button>
+            <button class="suggestion" data-prompt="Tell me a surprising science fact"><span class="suggestion-icon">✺</span><span><strong>Surprise me</strong><small>Learn something unexpected</small></span><span class="suggestion-arrow">↗</span></button>
           </div>
         </div>
       </section>
@@ -54,7 +76,7 @@
           <textarea id="messageInput" rows="1" maxlength="2000" placeholder="Message MiniAI..." autocomplete="off"></textarea>
           <button class="send-button" id="sendButton" type="submit" aria-label="Send message"><span>↑</span></button>
         </form>
-        <p class="disclaimer">MiniAI is in demo mode. Replies are sample responses, not generated by a live AI model.</p>
+        <p class="disclaimer">MiniAI can make mistakes. Check important information.</p>
       </footer>
     </main>
   </div>
