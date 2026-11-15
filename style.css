@@ -27,3 +27,13 @@
 @keyframes orbArtFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-7px)}}
 @media(max-width:760px){.orb-wrap{width:min(300px,68vw);margin-bottom:8px}}
 @media(prefers-reduced-motion:reduce){.orb-art{animation:none}}
+
+
+/* Mobile keyboard-aware layout: keep the composer above the on-screen keyboard. */
+@media(max-width:760px){
+  .app-shell{height:var(--app-height,100dvh);min-height:0;}
+  .chat-panel{display:flex;flex-direction:column;height:var(--app-height,100dvh);min-height:0;overflow:hidden;}
+  .topbar{flex:0 0 58px;}
+  .conversation{flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;}
+  .composer-area{flex:0 0 auto;padding-bottom:max(11px,env(safe-area-inset-bottom));}
+}
