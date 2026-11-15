@@ -2,9 +2,9 @@
 
 A purple-themed, mobile-friendly chatbot interface built with plain HTML, CSS and JavaScript.
 
-## Preview
+## Live site
 
-Open **[MiniAI on GitHub](https://github.com/dallasaristarchos-hue/MiniAI)** and enable GitHub Pages to publish the static site.
+https://dallasaristarchos-hue.github.io/MiniAI/
 
 ## Features
 
@@ -13,22 +13,24 @@ Open **[MiniAI on GitHub](https://github.com/dallasaristarchos-hue/MiniAI)** and
 - Chat bubbles, typing indicator and sample prompt buttons
 - Enter to send, Shift + Enter for a new line
 - New-chat and clear-chat controls
-- No framework or build step required
+- Secure server-side AI connection through a Cloudflare Worker
 
-## Run locally
-
-Download or clone this repository, then open `index.html` in a browser. For a local development server, you can use the Live Server extension in VS Code.
-
-## Important: demo mode
-
-MiniAI currently uses a small set of scripted sample replies. It is **not connected to a live AI model yet**.
-
-To add real AI responses, create a small server-side backend that calls an AI provider. Store the API key as a server environment variable; **never put a private API key in `script.js` or any browser code**.
-
-## Project files
+## Architecture
 
 - `index.html` — page structure
-- `style.css` — purple responsive design
-- `script.js` — chat interaction and demo replies
+- `style.css` — responsive purple design
+- `script.js` — chat interface and API requests
+- `worker.js` — Cloudflare Worker backend
 
-Made with 💜
+The browser calls the Cloudflare Worker at `https://miniai-api.dallasaristarchos.workers.dev/api/chat`. The Worker calls the OpenAI Responses API. The private API key belongs in a Cloudflare Worker secret named `OPENAI_API_KEY`; it must never be added to this repository or browser JavaScript.
+
+## Configure the API secret
+
+In Cloudflare, open Workers & Pages → miniai-api → Settings → Variables and Secrets → Add → Secret. Set the name to `OPENAI_API_KEY` and paste the API key into the Cloudflare secret value field. Do not commit the key to GitHub.
+
+OpenAI API usage may incur charges. Set a low usage budget and usage limits before enabling the secret.
+
+## Deploying the frontend
+
+GitHub Pages is configured to publish the root of the `main` branch:
+https://dallasaristarchos-hue.github.io/MiniAI/
