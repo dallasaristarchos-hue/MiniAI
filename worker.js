@@ -91,8 +91,13 @@ export default {
     }
 
     try {
-      const aiResponse = await fetch("https://api.openai.com/v1/responses", {
+      const aiController = new AbortController();
+      const aiTimeout = setTimeout(() => aiController.abort(), 38_000);
+      let aiResponse;
+      try {
+        aiResponse = await fetch("https://api.openai.com/v1/responses", {
         method: "POST",
+        signal: aiController.signal,
         headers: {
           "Authorization": `Bearer ${env.OPENAI_API_KEY}`,
           "Content-Type": "application/json"
@@ -103,14 +108,33 @@ export default {
           tools: [{ type: "web_search" }],
           tool_choice: "auto",
           input: messages,
-          max_output_tokens: 1400,
+          max_output_tokens: 1200,
           store: false
         })
-      });
+        });
+      } catch (error) {
+        if (error && error.name === "AbortError") {
+          return json({ error: "The AI search took too long. Try asking a more focused question, or try again shortly." }, 504, allowedOrigin);
+        }
+        return json({ error: "MiniAI temporarily couldn't reach its AI provider. Please try again." }, 502, allowedOrigin);
+      } finally {
+        clearTimeout(aiTimeout);
+      }
 
-      const result = await aiResponse.json();
+      let result;
+      try {
+        result = await aiResponse.json();
+      } catch {
+        return json({ error: "The AI provider returned an unreadable response. Please try again." }, 502, allowedOrigin);
+      }
       if (!aiResponse.ok) {
-        return json({ error: "The AI service could not complete that request. Check the API account and key configuration." }, 502, allowedOrigin);
+        if (aiResponse.status === 429) {
+          return json({ error: "MiniAI is busy right now. Please wait a moment and try again." }, 429, allowedOrigin);
+        }
+        if (aiResponse.status === 401 || aiResponse.status === 403) {
+          return json({ error: "MiniAI's AI provider rejected its API credentials. The site owner needs to check the private API configuration." }, 503, allowedOrigin);
+        }
+        return json({ error: "The AI provider couldn't complete that request. Please try again." }, 502, allowedOrigin);
       }
 
       let answer = result.output_text;
