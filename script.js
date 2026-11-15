@@ -41,6 +41,51 @@ function showTyping() {
   conversation.scrollTop = conversation.scrollHeight;
 }
 
+async function requestMiniAI(payload) {
+  let lastError;
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 45000);
+    try {
+      const response = await fetch(API_URL, {
+        method: "POST",
+        mode: "cors",
+        cache: "no-store",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+        signal: controller.signal
+      });
+      const data = await response.json().catch(() => ({}));
+      if (response.ok) return data;
+      const error = new Error(data.error || `MiniAI service error (${response.status}).`);
+      error.status = response.status;
+      if (attempt === 0 && [502, 503, 504].includes(response.status)) {
+        lastError = error;
+        await new Promise(resolve => setTimeout(resolve, 700));
+        continue;
+      }
+      throw error;
+    } catch (error) {
+      lastError = error;
+      if (error.name === "AbortError") {
+        if (attempt === 0) continue;
+        throw new Error("MiniAI took too long to respond. Please try again in a moment.");
+      }
+      if (error instanceof TypeError && attempt === 0) {
+        await new Promise(resolve => setTimeout(resolve, 700));
+        continue;
+      }
+      throw error;
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+  if (lastError instanceof TypeError) {
+    throw new Error("MiniAI couldn't reach its server. Check your internet connection and try again.");
+  }
+  throw lastError || new Error("MiniAI couldn't complete that request. Please try again.");
+}
+
 async function sendMessage(text) {
   const message = String(text || "").trim();
   if (!message || sendButton.disabled) return;
@@ -52,21 +97,18 @@ async function sendMessage(text) {
   sendButton.disabled = true;
   showTyping();
   try {
-    const response = await fetch(API_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ messages: chatHistory.slice(-12) })
-    });
-    const data = await response.json().catch(() => ({}));
+    const data = await requestMiniAI({ messages: chatHistory.slice(-12) });
     document.querySelector("#typingIndicator")?.remove();
-    if (!response.ok) throw new Error(data.error || "MiniAI couldn't answer right now. Please try again.");
     const reply = String(data.reply || "").trim();
-    if (!reply) throw new Error("MiniAI returned an empty reply. Please try again.");
+    if (!reply) throw new Error("MiniAI returned an empty answer. Please try asking again.");
     chatHistory.push({ role: "assistant", content: reply });
     addMessage(reply, "assistant");
   } catch (error) {
     document.querySelector("#typingIndicator")?.remove();
-    addMessage(error.message || "Connection problem. Please try again.", "assistant");
+    const message = error.status === 429
+      ? "MiniAI is receiving too many requests. Please wait a minute and try again."
+      : (error.message || "MiniAI couldn't connect. Please try again.");
+    addMessage(message, "assistant");
   } finally {
     sendButton.disabled = false;
     input.focus();
