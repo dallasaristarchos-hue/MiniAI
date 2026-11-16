@@ -310,3 +310,13 @@ button:focus-visible,a:focus-visible,[role=button]:focus-visible{outline:2px sol
 ::selection{background:#a78bfa55;color:#fff}
 @media(max-width:760px){.sidebar{background:#08080a!important;border-right:1px solid #ffffff14!important}.chat-panel,.topbar,.conversation{background:#08080a!important}.settings-card,.studio-card{background:#0b0b0e!important;border-color:#ffffff18!important}}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}
+
+
+/* Mobile keyboard + conversation scrolling: keep the composer visible without trapping the chat. */
+@media(max-width:760px){
+  .app-shell{height:var(--app-height,100dvh)!important;transform:translateY(var(--app-offset-top,0px));}
+  .chat-panel{height:var(--app-height,100dvh)!important;max-height:var(--app-height,100dvh)!important;min-height:0!important;overflow:hidden!important;}
+  .conversation{min-height:0!important;flex:1 1 0!important;overflow-y:auto!important;overscroll-behavior-y:contain!important;touch-action:pan-y!important;-webkit-overflow-scrolling:touch!important;padding-bottom:28px!important;}
+  .composer-area{flex-shrink:0!important;position:relative!important;padding-bottom:max(10px,env(safe-area-inset-bottom))!important;}
+  #messageInput{max-height: min(150px,22vh);overflow-y:auto;overscroll-behavior:contain;}
+}
