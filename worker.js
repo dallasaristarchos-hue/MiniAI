@@ -467,8 +467,7 @@ export default {
           const session = await createSession(env, account.id);
           return json({ ok: true, token: session.token, expiresAt: session.expiresAt, account: { id: account.id, username: account.username, displayName: account.display_name } }, 200, allowedOrigin);
         }
-        if (url.pathname === "/api/auth/me") {
-          if (request.method !== "GET") return json({ error: "Method not allowed" }, 405, allowedOrigin);
+        if (url.pathname === "/api/auth/me" && request.method === "GET") {
           authStage = "session-lookup";
           const account = await authenticatedAccount(request, env);
           if (!account) return json({ error: "Please sign in again." }, 401, allowedOrigin);
@@ -494,6 +493,7 @@ export default {
           ]);
           return json({ ok: true, deleted: true }, 200, allowedOrigin);
         }
+        if (url.pathname === "/api/auth/me") return json({ error: "Method not allowed" }, 405, allowedOrigin);
         return json({ error: "Not found" }, 404, allowedOrigin);
       } catch (error) {
         console.error("MiniAI account request failed", { stage: authStage, message: String(error?.message || error) });
@@ -803,7 +803,7 @@ export default {
         stream: true
       });
 
-      if (result instanceof ReadableStream) return new Response(result,{status:200,headers:{"content-type":"text/event-stream; charset=utf-8","cache-control":"no-cache, no-transform","access-control-allow-origin":allowedOrigin,"access-control-allow-methods":"GET, POST, DELETE, OPTIONS","access-control-allow-headers":"Content-Type","vary":"Origin"}});
+      if (result instanceof ReadableStream) return new Response(result,{status:200,headers:{"content-type":"text/event-stream; charset=utf-8","cache-control":"no-cache, no-transform","access-control-allow-origin":allowedOrigin,"access-control-allow-methods":"GET, POST, DELETE, OPTIONS","access-control-allow-headers":"Content-Type","x-content-type-options":"nosniff","referrer-policy":"no-referrer","x-frame-options":"DENY","vary":"Origin"}});
 
       const answer = typeof result?.response === "string"
         ? result.response
@@ -816,7 +816,7 @@ export default {
       if (!answer.trim()) {
         return json({ error: "MiniAI did not receive a usable answer. Please try again." }, 502, allowedOrigin);
       }
-      return new Response(`data: ${JSON.stringify({response:answer})}\n\ndata: [DONE]\n\n`,{status:200,headers:{"content-type":"text/event-stream; charset=utf-8","cache-control":"no-cache","access-control-allow-origin":allowedOrigin,"access-control-allow-methods":"GET, POST, DELETE, OPTIONS","access-control-allow-headers":"Content-Type","vary":"Origin"}});
+      return new Response(`data: ${JSON.stringify({response:answer})}\n\ndata: [DONE]\n\n`,{status:200,headers:{"content-type":"text/event-stream; charset=utf-8","cache-control":"no-cache","access-control-allow-origin":allowedOrigin,"access-control-allow-methods":"GET, POST, DELETE, OPTIONS","access-control-allow-headers":"Content-Type","x-content-type-options":"nosniff","referrer-policy":"no-referrer","x-frame-options":"DENY","vary":"Origin"}});
     } catch (error) {
       return json({ error: "MiniAI's free AI service is temporarily busy. Please try again shortly." }, 502, allowedOrigin);
     }
