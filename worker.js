@@ -270,7 +270,7 @@ function json(data, status = 200, origin = "") {
 }
 
 const AUTH_SESSION_DAYS = 30;
-const AUTH_PBKDF2_ITERATIONS = 150000;
+const AUTH_PBKDF2_ITERATIONS = 100000;
 function toBase64Url(bytes) {
   let binary = "";
   for (const byte of new Uint8Array(bytes)) binary += String.fromCharCode(byte);
@@ -284,9 +284,14 @@ function fromBase64Url(value) {
 async function sha256Base64Url(value) {
   return toBase64Url(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value)));
 }
-async function passwordHash(password, salt) {
-  const material = await crypto.subtle.importKey("raw", new TextEncoder().encode(password), "PBKDF2", false, ["deriveBits"]);
-  const bits = await crypto.subtle.deriveBits({ name: "PBKDF2", hash: "SHA-256", salt: fromBase64Url(salt), iterations: AUTH_PBKDF2_ITERATIONS }, material, 256);
+async function passwordHash(password, salt, setStage = () => {}) {
+  setStage("password-import");
+  const passwordBytes = new TextEncoder().encode(password);
+  const material = await crypto.subtle.importKey("raw", passwordBytes, { name: "PBKDF2" }, false, ["deriveBits"]);
+  setStage("password-derive");
+  const saltBytes = Uint8Array.from(fromBase64Url(salt));
+  const bits = await crypto.subtle.deriveBits({ name: "PBKDF2", hash: "SHA-256", salt: saltBytes, iterations: AUTH_PBKDF2_ITERATIONS }, material, 256);
+  setStage("password-finish");
   return toBase64Url(bits);
 }
 async function createSession(env, accountId) {
@@ -363,9 +368,9 @@ export default {
             authStage = "account-lookup";
             const exists = await env.DB.prepare("SELECT id FROM accounts WHERE username = ? COLLATE NOCASE LIMIT 1").bind(normalized).first();
             if (exists) return json({ error: "That account name is already taken. Choose another one." }, 409, allowedOrigin);
-            authStage = "password-hash";
+            authStage = "password-salt";
             const salt = toBase64Url(crypto.getRandomValues(new Uint8Array(16)));
-            const hash = await passwordHash(password, salt);
+            const hash = await passwordHash(password, salt, stage => { authStage = stage; });
             const id = crypto.randomUUID();
             const now = Date.now();
             authStage = "account-insert";
@@ -381,7 +386,7 @@ export default {
             account = await env.DB.prepare("SELECT id, username, display_name, password_salt, password_hash FROM accounts WHERE username = ? COLLATE NOCASE LIMIT 1").bind(normalized).first();
             if (!account) return json({ error: "Account name or password is incorrect." }, 401, allowedOrigin);
             authStage = "password-check";
-            const candidate = await passwordHash(password, account.password_salt);
+            const candidate = await passwordHash(password, account.password_salt, stage => { authStage = stage; });
             if (candidate !== account.password_hash) return json({ error: "Account name or password is incorrect." }, 401, allowedOrigin);
           }
           authStage = "session-create";

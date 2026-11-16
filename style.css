@@ -237,3 +237,18 @@ textarea{color:#fff!important}textarea::placeholder{color:#8c8790!important}
 
 /* Named accounts for one-rating-per-account */
 .account-auth{display:grid;gap:10px;margin-top:14px}.account-auth .setting-field input{width:100%;padding:11px 12px;border:1px solid var(--line);border-radius:11px;background:#120d1d;color:var(--text);font:inherit}.account-actions{display:flex;gap:9px;flex-wrap:wrap}.account-actions button{flex:1;min-width:120px}.account-signed-in{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:14px 0;padding:12px;border:1px solid var(--line);border-radius:13px;background:#a77aff0d}.account-welcome{display:flex;align-items:center;gap:10px;min-width:0}.account-welcome>div{display:grid;gap:3px}.account-welcome strong{overflow-wrap:anywhere;color:var(--text);font-size:14px}.account-welcome small{color:var(--muted);font-size:11px}.account-avatar{display:grid;place-items:center;width:38px;height:38px;flex:0 0 38px;border-radius:50%;background:linear-gradient(135deg,#9c65ee,#df83d1);color:white;font-weight:800}.account-actions button:disabled{opacity:.55}.rating-stars button:disabled{cursor:default;opacity:.6;transform:none}
+
+/* MiniAI 2.0 Settings icon system */
+.settings-icon{font-size:18px!important;background:linear-gradient(140deg,#a855f735,#ec489930)!important;border-color:#d18bff55!important;box-shadow:0 5px 18px #a855f71c}
+.setting-label-icon{display:inline-grid;place-items:center;width:19px;height:19px;flex:0 0 19px;margin-right:7px;border:1px solid #c084fc30;border-radius:6px;background:#a855f718;color:#edc4ff;font-size:11px;line-height:1}
+.setting-field>span{align-items:center!important;justify-content:flex-start!important}
+.setting-field>span output{margin-left:auto}
+.setting-toggle strong{display:flex;align-items:center;gap:7px}
+.setting-toggle-icon{display:inline-grid;place-items:center;width:22px;height:22px;flex:0 0 22px;border:1px solid #c084fc30;border-radius:7px;background:linear-gradient(140deg,#a855f71c,#ec489918);font-size:12px;font-weight:500}
+.settings-primary,.settings-secondary{display:inline-flex;align-items:center;justify-content:center;gap:7px;transition:transform .16s ease,filter .16s ease,border-color .16s ease}
+.settings-primary:hover,.settings-secondary:hover{filter:brightness(1.12);transform:translateY(-1px)}
+.settings-primary:active,.settings-secondary:active{transform:translateY(0)}
+.settings-section{scroll-margin-top:12px}
+.settings-section-heading{padding-bottom:2px}
+.settings-section-heading .settings-icon{border-radius:12px}
+@media(max-width:600px){.settings-section{padding:15px!important}.setting-label-icon{width:18px;height:18px;flex-basis:18px}.settings-section-heading{gap:9px}}
