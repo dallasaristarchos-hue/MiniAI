@@ -1,0 +1,16 @@
+{
+  "id": "/",
+  "name": "MiniAI — Your AI Space",
+  "short_name": "MiniAI",
+  "description": "A thoughtful AI chat space for ideas, questions and discovery.",
+  "start_url": "/?source=installed",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#100b1c",
+  "theme_color": "#100b1c",
+  "icons": [
+    {"src": "/assets/miniai-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable"},
+    {"src": "/assets/miniai-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable"}
+  ]
+}

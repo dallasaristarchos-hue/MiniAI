@@ -129,6 +129,27 @@ $("#makeMotion").addEventListener("click",()=>{if(!motionImage||!window.MediaRec
 document.addEventListener("keydown",event=>{if((event.ctrlKey||event.metaKey)&&event.key.toLowerCase()==="k"){event.preventDefault();makeChat()}if(event.key==="Escape"){closeSidebar();closeAttachMenu()}});
 function updateMobileViewport(){const height=window.innerHeight||document.documentElement.clientHeight;document.documentElement.style.setProperty("--app-height",`${Math.round(height)}px`);}
 updateMobileViewport();window.addEventListener("resize",updateMobileViewport,{passive:true});
+// PWA installation and offline app shell
+let deferredInstallPrompt = null;
+const installPwaButton = document.querySelector("#installPwa");
+const installHelp = document.querySelector("#installHelp");
+function updateInstallUI(){
+  const standalone = window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
+  if (!installPwaButton || !installHelp) return;
+  if (standalone) { installPwaButton.textContent = "MiniAI is installed ✓"; installPwaButton.disabled = true; installHelp.textContent = "MiniAI is running as an installed app."; }
+  else if (deferredInstallPrompt) { installPwaButton.disabled = false; installHelp.textContent = "Install MiniAI directly from your browser. You can also download the Android APK."; }
+  else { installPwaButton.disabled = false; installHelp.textContent = "On Android, open this site in Chrome and use the browser menu → Install app or Add to Home screen. The APK download is also available below."; }
+}
+window.addEventListener("beforeinstallprompt", event => { event.preventDefault(); deferredInstallPrompt = event; updateInstallUI(); });
+window.addEventListener("appinstalled", () => { deferredInstallPrompt = null; updateInstallUI(); showToast("MiniAI installed successfully"); });
+installPwaButton?.addEventListener("click", async () => {
+  if (!deferredInstallPrompt) { installHelp.textContent = "Open miniai-ai.pages.dev in Chrome, tap ⋮, then choose Install app or Add to Home screen."; return; }
+  deferredInstallPrompt.prompt(); const choice = await deferredInstallPrompt.userChoice; deferredInstallPrompt = null;
+  installHelp.textContent = choice.outcome === "accepted" ? "MiniAI is being installed." : "You can install MiniAI later from the browser menu."; updateInstallUI();
+});
+if ("serviceWorker" in navigator && location.protocol === "https:") { window.addEventListener("load", () => navigator.serviceWorker.register("/sw.js").catch(() => {})); }
+updateInstallUI();
+
 if(!currentChat()){const chat={id:uid(),title:"New conversation",mode:"general",updatedAt:Date.now(),messages:[]};chats.unshift(chat);activeId=chat.id;save()}renderAll();checkConnection();
 
 
