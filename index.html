@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=20261116p">
+  <link rel="stylesheet" href="style.css?v=20261116q">
 </head>
 <body>
   <div class="app-shell">
@@ -79,6 +79,13 @@
         <label class="studio-label" for="imagePrompt">Describe what you want</label><textarea id="imagePrompt" rows="3" maxlength="1800" placeholder="A dreamy purple city at sunset, cinematic lighting…"></textarea>
         <label class="studio-upload" id="editImageUpload" hidden>Choose a photo to edit<input id="studioImageFile" type="file" accept="image/png,image/jpeg,image/webp"></label>
         <img id="studioImagePreview" class="studio-preview" alt="Your image preview" hidden>
+        <div class="photo-controls" id="photoControls" hidden>
+          <label class="studio-label" for="photoBrightness">Brightness <span id="brightnessValue">100%</span></label><input id="photoBrightness" type="range" min="50" max="150" value="100">
+          <label class="studio-label" for="photoContrast">Contrast <span id="contrastValue">100%</span></label><input id="photoContrast" type="range" min="50" max="150" value="100">
+          <label class="studio-label" for="photoSaturation">Saturation <span id="saturationValue">100%</span></label><input id="photoSaturation" type="range" min="0" max="200" value="100">
+          <label class="studio-label" for="photoBlur">Soft blur <span id="blurValue">0px</span></label><input id="photoBlur" type="range" min="0" max="8" value="0">
+          <label class="studio-label" for="photoRotate">Rotate photo</label><select id="photoRotate"><option value="0">Original</option><option value="90">90°</option><option value="180">180°</option><option value="270">270°</option></select>
+        </div>
         <button class="studio-primary" id="makeImage" type="button">✦ Generate image</button>
         <p class="studio-status" id="imageStatus">Image generation uses Cloudflare's free daily AI allowance.</p>
         <div class="studio-result" id="imageResult" hidden><img id="generatedImage" alt="MiniAI generated result"><a id="downloadImage" download="miniai-image.jpg">Download image ↓</a></div>
@@ -104,6 +111,6 @@
   </section>
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js" referrerpolicy="no-referrer"></script>
-  <script src="script.js?v=20261116p"></script>
+  <script src="script.js?v=20261116q"></script>
 </body>
 </html>
