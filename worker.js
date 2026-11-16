@@ -16,7 +16,12 @@ function decodeHtml(value) {
   return value.replace(/&amp;/g, "&").replace(/&quot;/g, "\"").replace(/&#x27;|&#39;/g, "'").replace(/&lt;/g, "<").replace(/&gt;/g, ">");
 }
 async function searchWeb(query) {
-  const endpoint = "https://www.bing.com/search?q=" + encodeURIComponent(String(query).slice(0, 180)) + "&count=6";
+  const originalQuery = String(query).slice(0, 180);
+  const cleanedQuery = originalQuery.replace(/\b(what|when|where|which|who|whom|whose|why|how|does|do|did|is|are|was|were|the|and|for|from|with|about|please|could|would|should)\b/gi, " ").replace(/[?]/g, " ").replace(/\s+/g, " ").trim();
+  const freshnessRequested = /\b(latest|today|current|currently|right now|at the moment|news|recent)\b/i.test(originalQuery);
+  const currentDate = new Intl.DateTimeFormat("en-US", { timeZone: "UTC", month: "long", day: "numeric", year: "numeric" }).format(new Date());
+  const searchQuery = (cleanedQuery + (freshnessRequested ? " " + currentDate : "")).slice(0, 180);
+  const endpoint = "https://www.bing.com/search?q=" + encodeURIComponent(searchQuery) + "&count=6&setlang=en-us&cc=US";
   const response = await fetch(endpoint, { headers: { "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/120 Safari/537.36", "Accept": "text/html" }, signal: AbortSignal.timeout(8000) });
   if (!response.ok) throw new Error("Search provider unavailable");
   const html = await response.text();
@@ -47,7 +52,7 @@ async function searchWeb(query) {
   const relevant = results.filter(item => {
     const haystack = `${item.title} ${item.snippet} ${item.url}`.toLowerCase();
     const matches = focusTerms.filter(term => haystack.includes(term)).length;
-    return focusTerms.length === 0 || matches >= (focusTerms.length >= 3 ? 2 : 1);
+    return focusTerms.length === 0 || matches >= (focusTerms.length >= 2 ? 2 : 1);
   });
   return relevant;
 }
@@ -378,7 +383,7 @@ export default {
       try {
         const found = await searchWeb(latestUserText);
         if (found.length) webEvidence = "\n\nLIVE WEB SEARCH RESULTS (retrieved just now; use these sources and include clickable source URLs):\n" + found.map((item, index) => `${index + 1}. ${item.title}\nURL: ${item.url}\nSnippet: ${item.snippet}`).join("\n\n");
-        else webEvidence = "\n\nLIVE WEB SEARCH RETURNED NO RESULTS. Be transparent that no current sources were found; do not invent facts or claim you searched successfully.";
+        else webEvidence = "\n\nLIVE WEB SEARCH RETURNED NO RELEVANT RESULTS. Say that the search did not find reliable matching sources. Do not say you have no internet access, and do not guess or cite unrelated pages.";
       } catch (searchError) {
         webEvidence = "\n\nLIVE WEB SEARCH FAILED. Be transparent that live research is temporarily unavailable; do not pretend you browsed or invent sources.";
       }
