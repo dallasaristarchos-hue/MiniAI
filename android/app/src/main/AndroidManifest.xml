@@ -7,6 +7,17 @@
             <intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter>
             
         </activity>
+        <activity
+            android:name=".AssistantShortcutActivity"
+            android:label="MiniAI"
+            android:exported="true"
+            android:excludeFromRecents="true"
+            android:launchMode="singleTask">
+            <intent-filter>
+                <action android:name="android.intent.action.ASSIST" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
         <service
             android:name=".MiniAIVoiceInteractionService"
             android:label="MiniAI"
