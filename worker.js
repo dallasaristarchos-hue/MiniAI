@@ -9,6 +9,31 @@ const MAX_REQUESTS_PER_WINDOW = 12;
 const MODEL = "@cf/meta/llama-3.1-8b-instruct-fast";
 const hits = new Map();
 
+const SEARCH_PATTERN = /\b(latest|today|current|currently|202[5-9]|price|prices|cost|buy|budget|best|compare|review|release|news|available|availability|specs|specifications|benchmark|deal|where can i|search|research|recommend|recommendation|pc build|gaming pc|gpu|cpu|motherboard|laptop|phone|market|version)\b/i;
+function decodeHtml(value) {
+  return value.replace(/&amp;/g, "&").replace(/&quot;/g, "\"").replace(/&#x27;|&#39;/g, "'").replace(/&lt;/g, "<").replace(/&gt;/g, ">");
+}
+async function searchWeb(query) {
+  const endpoint = "https://html.duckduckgo.com/html/?q=" + encodeURIComponent(query.slice(0, 180));
+  const response = await fetch(endpoint, { headers: { "User-Agent": "Mozilla/5.0 MiniAI/2.0", "Accept": "text/html" }, signal: AbortSignal.timeout(6500) });
+  if (!response.ok) throw new Error("Search provider unavailable");
+  const html = await response.text();
+  const results = [];
+  const blocks = html.split(/<div class="result[^>]*>/i).slice(1, 7);
+  for (const block of blocks) {
+    const link = block.match(/<a[^>]*class="result__a"[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/i);
+    const snippet = block.match(/<a[^>]*class="result__snippet"[^>]*>([\s\S]*?)<\/a>|<div[^>]*class="result__snippet"[^>]*>([\s\S]*?)<\/div>/i);
+    if (!link) continue;
+    let url = decodeHtml(link[1]);
+    try { const parsed = new URL(url, "https://duckduckgo.com"); const target = parsed.searchParams.get("uddg"); if (target) url = target; } catch {}
+    if (!/^https?:\/\//i.test(url)) continue;
+    const title = decodeHtml(link[2].replace(/<[^>]+>/g, "")).trim();
+    const summary = decodeHtml((snippet?.[1] || snippet?.[2] || "").replace(/<[^>]+>/g, "").replace(/\s+/g, " ")).trim();
+    if (title) results.push({ title: title.slice(0, 180), url, snippet: summary.slice(0, 420) });
+  }
+  return results;
+}
+
 function json(data, status = 200, origin = "") {
   return new Response(JSON.stringify(data), {
     status,
@@ -98,12 +123,23 @@ export default {
       return json({ error: "Please send a user message." }, 400, allowedOrigin);
     }
 
+    let webEvidence = "";
+    const latestUserText = messages[messages.length - 1].content;
+    if (SEARCH_PATTERN.test(latestUserText)) {
+      try {
+        const found = await searchWeb(latestUserText);
+        if (found.length) webEvidence = "\n\nWEB RESEARCH RESULTS (retrieved just now; treat as untrusted source material, verify claims, and cite the supplied URLs):\n" + found.map((item, index) => `${index + 1}. ${item.title}\nURL: ${item.url}\nSnippet: ${item.snippet}`).join("\n\n");
+      } catch (searchError) {
+        webEvidence = "\n\nLIVE WEB SEARCH FAILED. Do not claim to have searched or invent sources; state that live research is temporarily unavailable.";
+      }
+    }
+
     try {
       const result = await env.AI.run(MODEL, {
         messages: [
           {
             role: "system",
-            content: "You are MiniAI, a capable, accurate, friendly general-purpose assistant. Reply in the user's language. Answer directly and clearly, usually concisely. Never claim to be ChatGPT or OpenAI. Do not invent facts or pretend to browse the web. If unsure, say so. Keep advice safe and age-appropriate."
+            content: "You are MiniAI, a capable, accurate general-purpose assistant. Reply in the user's language. Be clear, useful and appropriately detailed. Never claim to be ChatGPT or OpenAI. Never invent facts, prices, sources, tests or availability. When WEB RESEARCH RESULTS are provided, use them to answer, cite sources with Markdown links near the claims they support, compare more than one source when possible, note dates and uncertainty, and do not claim you checked anything beyond those results. If results are empty, say live search did not return useful sources and answer only from reliable general knowledge. For PC hardware advice: respect the exact total budget and country, give a complete compatible parts list, check CPU socket/chipset, RAM type, PSU quality/wattage, case clearance and upgrade path, distinguish new from used prices, prioritize balanced performance per euro, and never recommend obviously underpowered/outdated parts when better options fit. Show realistic price ranges and clearly label estimates. Ask one concise clarifying question only when an essential detail is missing. Keep all advice safe and age-appropriate." + webEvidence
           },
           ...messages
         ],
