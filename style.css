@@ -87,3 +87,21 @@ textarea{font-size:14px}.send-button{border-radius:12px;box-shadow:0 4px 16px #b
  .composer{border-radius:17px;padding:10px 10px 10px 14px;background:#21192c}
 }
 @media(max-width:370px){.welcome h1{font-size:36px}.message-content{max-width:87%}}
+
+
+/* Layering fix: keep the mobile drawer above its scrim and leaves above the panel background. */
+.app-shell{z-index:auto!important;}
+.sidebar{z-index:1002!important;}
+.sidebar-scrim{z-index:1001!important;}
+.chat-panel{isolation:isolate;}
+#ember-leaves{z-index:0!important;opacity:.95!important;}
+.topbar,.conversation,.composer-area{position:relative;z-index:2;}
+#ember-leaves .ember-leaf{top:-8vh;opacity:0;animation-name:ember-fall-safe;}
+@keyframes ember-fall-safe{
+  0%{opacity:0;transform:translate3d(0,-5vh,0) rotate(0deg)}
+  8%{opacity:var(--alpha)}
+  45%{transform:translate3d(var(--drift),48vh,0) rotate(170deg)}
+  90%{opacity:var(--alpha)}
+  100%{opacity:0;transform:translate3d(calc(var(--drift)*-.6),112vh,0) rotate(360deg)}
+}
+@media(max-width:760px){.sidebar{z-index:1002!important}.sidebar-scrim{z-index:1001!important}}
