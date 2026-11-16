@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=20261116m">
+  <link rel="stylesheet" href="style.css?v=20261116n">
 </head>
 <body>
   <div class="app-shell">
@@ -36,6 +36,7 @@
         </div>
         <div class="model-pill"><span class="status-dot" id="connectionDot"></span><span id="connectionLabel">MiniAI 2.0</span></div>
         <div class="topbar-actions">
+          <button class="icon-button voice-call-button" id="voiceCallButton" type="button" aria-label="Start voice call" title="Voice call">☎</button>
           <button class="icon-button" id="exportChat" type="button" aria-label="Export conversation" title="Export conversation">↧</button>
           <button class="icon-button clear-button" id="clearChat" type="button" aria-label="Clear conversation" title="Clear conversation">⌫</button>
         </div>
@@ -61,15 +62,18 @@
           <input id="folderInput" class="sr-only" type="file" webkitdirectory directory multiple>
           <input id="cameraInput" class="sr-only" type="file" accept="image/*" capture="environment">
           <input id="galleryInput" class="sr-only" type="file" accept="image/*" multiple>
-          <div class="composer-tools"><div class="attach-wrap"><button class="attach-button" id="attachButton" type="button" aria-label="Add attachment" aria-expanded="false" aria-controls="attachMenu" title="Add attachment">＋</button><div class="attach-menu" id="attachMenu" hidden><button type="button" data-pick="files"><span>▤</span> Files / folders</button><button type="button" data-pick="camera"><span>◎</span> Camera</button><button type="button" data-pick="gallery"><span>▧</span> Gallery</button></div></div><span class="input-hint">↵ send · shift + ↵ new line</span><button class="send-button" id="sendButton" type="submit" aria-label="Send message"><span>↑</span></button></div>
+          <div class="composer-tools"><div class="attach-wrap"><button class="attach-button" id="attachButton" type="button" aria-label="Add attachment" aria-expanded="false" aria-controls="attachMenu" title="Add attachment">＋</button><div class="attach-menu" id="attachMenu" hidden><button type="button" data-pick="files"><span>▤</span> Files / folders</button><button type="button" data-pick="camera"><span>◎</span> Camera</button><button type="button" data-pick="gallery"><span>▧</span> Gallery</button></div></div><span class="input-hint">↵ send · shift + ↵ new line</span><button class="voice-chat-button" id="voiceChatButton" type="button" aria-label="Dictate message" title="Speak your message">🎙</button><button class="send-button" id="sendButton" type="submit" aria-label="Send message"><span>↑</span></button></div>
         </form>
         <p class="disclaimer">MiniAI can make mistakes. Verify important information. <span>✦</span></p>
       </footer>
     </main>
   </div>
   <button class="sidebar-scrim" id="sidebarScrim" type="button" aria-label="Close navigation menu"></button>
+  <section class="voice-call" id="voiceCall" hidden role="dialog" aria-modal="true" aria-labelledby="voiceCallTitle">
+    <div class="voice-call-card"><button class="voice-close" id="voiceClose" type="button" aria-label="Close voice call">×</button><div class="voice-orb" id="voiceOrb">✦</div><p class="voice-eyebrow">MINIAI VOICE</p><h2 id="voiceCallTitle">Talk with MiniAI</h2><p class="voice-status" id="voiceStatus">Ready when you are</p><p class="voice-transcript" id="voiceTranscript">Your conversation will appear in the chat.</p><button class="voice-end" id="voiceEnd" type="button">Start call</button><small class="voice-note">Uses your browser's speech features. Microphone permission is required.</small></div>
+  </section>
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js" referrerpolicy="no-referrer"></script>
-  <script src="script.js?v=20261116m"></script>
+  <script src="script.js?v=20261116n"></script>
 </body>
 </html>
