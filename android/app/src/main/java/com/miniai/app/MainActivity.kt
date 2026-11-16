@@ -8,6 +8,7 @@ import android.graphics.Color
 import android.net.Uri
 import android.os.Bundle
 import android.view.WindowInsets
+import android.view.inputmethod.InputMethodManager
 import android.view.WindowManager
 import android.os.Build
 import android.window.OnBackInvokedCallback
@@ -56,8 +57,7 @@ class MainActivity : Activity() {
             override fun onPageFinished(view: WebView, url: String) {
                 super.onPageFinished(view, url)
                 if (pendingAssistantOpen) {
-                    pendingAssistantOpen = false
-                    view.evaluateJavascript("window.openMiniAIAssistant && window.openMiniAIAssistant()", null)
+                    openAssistantComposer()
                 }
             }
         }
@@ -113,9 +113,22 @@ class MainActivity : Activity() {
         setIntent(intent)
         if (intent.getBooleanExtra("opened_as_assistant", false) || intent.action == Intent.ACTION_ASSIST) {
             pendingAssistantOpen = true
-            if (::webView.isInitialized) webView.post {
-                webView.evaluateJavascript("window.openMiniAIAssistant && window.openMiniAIAssistant()") { result ->
-                    if (result != "true") pendingAssistantOpen = true
+            if (::webView.isInitialized) openAssistantComposer()
+        }
+    }
+
+    private fun openAssistantComposer() {
+        if (!::webView.isInitialized) { pendingAssistantOpen = true; return }
+        webView.post {
+            webView.requestFocus()
+            webView.evaluateJavascript("window.openMiniAIAssistant ? window.openMiniAIAssistant() : false") { result ->
+                if (result == "true") {
+                    pendingAssistantOpen = false
+                    webView.requestFocus()
+                    val inputMethod = getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager
+                    inputMethod.showSoftInput(webView, InputMethodManager.SHOW_IMPLICIT)
+                } else {
+                    pendingAssistantOpen = true
                 }
             }
         }

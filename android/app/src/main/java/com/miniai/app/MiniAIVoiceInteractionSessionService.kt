@@ -22,7 +22,11 @@ private class MiniAIVoiceInteractionSession(
             addFlags(android.content.Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)
             putExtra("opened_as_assistant", true)
         }
-        startAssistantActivity(launch)
+        try {
+            appContext.startActivity(launch)
+        } catch (_: Exception) {
+            startAssistantActivity(launch)
+        }
         hide()
     }
 }
