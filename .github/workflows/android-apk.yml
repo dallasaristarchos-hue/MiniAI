@@ -56,11 +56,9 @@ jobs:
           RELEASE_FILES="MiniAI.apk"
           if [ -f android/app/build/outputs/bundle/release/app-release.aab ]; then
             cp android/app/build/outputs/bundle/release/app-release.aab MiniAI-Play.aab
-            RELEASE_FILES="$RELEASE_FILES
-MiniAI-Play.aab"
+            RELEASE_FILES="$RELEASE_FILES\nMiniAI-Play.aab"
           fi
-          printf "RELEASE_FILES=%b
-" "$RELEASE_FILES" >> "$GITHUB_ENV"
+          printf "RELEASE_FILES=%b\n" "$RELEASE_FILES" >> "$GITHUB_ENV"
           rm -f android/upload-keystore.jks
       - uses: softprops/action-gh-release@v2
         with:
