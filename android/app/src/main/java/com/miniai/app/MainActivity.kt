@@ -8,6 +8,7 @@ import android.graphics.Color
 import android.net.Uri
 import android.os.Bundle
 import android.view.WindowInsets
+import android.view.WindowManager
 import android.os.Build
 import android.window.OnBackInvokedCallback
 import android.window.OnBackInvokedDispatcher
@@ -31,6 +32,7 @@ class MainActivity : Activity() {
         super.onCreate(savedInstanceState)
         window.statusBarColor = Color.rgb(5, 5, 6)
         window.navigationBarColor = Color.rgb(5, 5, 6)
+        window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
         webView = WebView(this)
         webView.settings.javaScriptEnabled = true
         webView.settings.domStorageEnabled = true
@@ -84,8 +86,10 @@ class MainActivity : Activity() {
         setContentView(webView)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             webView.setOnApplyWindowInsetsListener { view, insets ->
-                val safe = insets.getInsets(WindowInsets.Type.systemBars() or WindowInsets.Type.displayCutout())
-                view.setPadding(safe.left, safe.top, safe.right, safe.bottom)
+                val systemBars = insets.getInsets(WindowInsets.Type.systemBars() or WindowInsets.Type.displayCutout())
+                val ime = insets.getInsets(WindowInsets.Type.ime())
+                val bottomInset = maxOf(systemBars.bottom, ime.bottom)
+                view.setPadding(systemBars.left, systemBars.top, systemBars.right, bottomInset)
                 insets
             }
             webView.requestApplyInsets()
