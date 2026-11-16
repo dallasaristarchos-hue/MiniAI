@@ -371,3 +371,7 @@ button:focus-visible,a:focus-visible,[role=button]:focus-visible{outline:2px sol
   #messageInput{max-height:min(108px,18dvh)!important;scroll-margin-bottom:0!important;}
   .disclaimer{margin-top:4px!important;}
 }
+
+
+/* Streaming never fights a user's manual scroll position. */
+.conversation{scroll-behavior:auto!important;scroll-snap-type:none!important;}
