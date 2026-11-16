@@ -49,3 +49,24 @@ document.addEventListener("keydown",event=>{if((event.ctrlKey||event.metaKey)&&e
 function updateMobileViewport(){const height=window.innerHeight||document.documentElement.clientHeight;document.documentElement.style.setProperty("--app-height",`${Math.round(height)}px`);}
 updateMobileViewport();window.addEventListener("resize",updateMobileViewport,{passive:true});
 if(!currentChat()){const chat={id:uid(),title:"New conversation",updatedAt:Date.now(),messages:[]};chats.unshift(chat);activeId=chat.id;save()}renderAll();checkConnection();
+
+
+/* Ambient falling pink-purple leaves */
+(function addFallingLeaves(){
+  if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  if (document.getElementById('ember-leaves')) return;
+  const layer=document.createElement('div'); layer.id='ember-leaves'; layer.setAttribute('aria-hidden','true');
+  const count=18;
+  for(let i=0;i<count;i++){
+    const leaf=document.createElement('span'); leaf.className='ember-leaf';
+    leaf.style.setProperty('--x',`${Math.random()*100}%`);
+    leaf.style.setProperty('--size',`${8+Math.random()*12}px`);
+    leaf.style.setProperty('--duration',`${13+Math.random()*15}s`);
+    leaf.style.setProperty('--delay',`${-Math.random()*26}s`);
+    leaf.style.setProperty('--turn',`${Math.random()*360}deg`);
+    leaf.style.setProperty('--drift',`${-55+Math.random()*110}px`);
+    leaf.style.setProperty('--alpha',`${.28+Math.random()*.38}`);
+    layer.appendChild(leaf);
+  }
+  document.body.prepend(layer);
+})();

@@ -37,3 +37,15 @@
   .conversation{flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;}
   .composer-area{flex:0 0 auto;padding-bottom:max(11px,env(safe-area-inset-bottom));}
 }
+
+
+/* Falling ember-leaves: atmospheric pink/violet accents, behind all chat content. */
+#ember-leaves{position:fixed;inset:0;overflow:hidden;pointer-events:none;z-index:0;contain:strict;}
+#ember-leaves .ember-leaf{position:absolute;top:-12vh;left:var(--x);width:var(--size);height:calc(var(--size)*.62);opacity:0;transform:rotate(var(--turn));border-radius:100% 0 100% 0;background:linear-gradient(135deg,#ffb0df 0%,#ff4fb7 42%,#a855f7 100%);box-shadow:0 0 10px #ff4fb755,0 0 20px #a855f733;animation:ember-fall var(--duration) linear var(--delay) infinite;}
+#ember-leaves .ember-leaf:nth-child(3n){background:linear-gradient(135deg,#f5b4ff,#b65cff 55%,#7138d7);box-shadow:0 0 12px #bd69ff66;}
+#ember-leaves .ember-leaf:nth-child(3n + 1){background:linear-gradient(135deg,#ffd0e9,#ff75bc 55%,#d83eaa);}
+#ember-leaves .ember-leaf:after{content:"";position:absolute;left:12%;top:49%;width:80%;height:1px;background:#fff8;transform:rotate(-18deg);transform-origin:left center;}
+@keyframes ember-fall{0%{opacity:0;translate:0 -4vh;rotate:0deg}8%{opacity:var(--alpha)}45%{translate:var(--drift) 48vh;rotate:170deg}90%{opacity:var(--alpha)}100%{opacity:0;translate:calc(var(--drift)*-0.6) 112vh;rotate:360deg}}
+/* Keep the actual app above the decorative layer. */
+.app-shell{position:relative;z-index:1;}
+@media(prefers-reduced-motion:reduce){#ember-leaves{display:none}}
