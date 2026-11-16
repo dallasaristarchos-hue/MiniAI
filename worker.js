@@ -563,7 +563,6 @@ export default {
             seed: Math.floor(Math.random() * 2147483647)
           });
         } else {
-          // FLUX.1 Schnell accepts prompt and steps only; extra fields can trigger error 5006.
           result = await env.AI.run("@cf/black-forest-labs/flux-1-schnell", {
             prompt: imagePrompt, steps: 8
           });
