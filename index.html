@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=20261116n">
+  <link rel="stylesheet" href="style.css?v=20261116p">
 </head>
 <body>
   <div class="app-shell">
@@ -19,6 +19,7 @@
         <button class="icon-button sidebar-close" id="closeSidebar" type="button" aria-label="Close menu">×</button>
       </div>
       <button class="new-chat" id="newChat" type="button"><span class="new-chat-icon">＋</span><span>New chat</span><kbd>⌘ K</kbd></button>
+      <button class="studio-launch" id="studioLaunch" type="button"><span>✧</span><span>Creative Studio</span><small>Images & video</small></button>
       <div class="history-heading"><span class="section-label">YOUR CONVERSATIONS</span><button class="icon-button tiny" id="searchToggle" type="button" aria-label="Search chats" title="Search chats">⌕</button></div>
       <label class="history-search" id="historySearchWrap"><span>⌕</span><input id="historySearch" type="search" placeholder="Search chats…" autocomplete="off"></label>
       <nav class="history-list" id="historyList" aria-label="Recent conversations"></nav>
@@ -69,11 +70,40 @@
     </main>
   </div>
   <button class="sidebar-scrim" id="sidebarScrim" type="button" aria-label="Close navigation menu"></button>
+  <section class="creative-studio" id="creativeStudio" hidden role="dialog" aria-modal="true" aria-labelledby="studioTitle">
+    <div class="studio-card">
+      <header class="studio-header"><div><p class="studio-kicker">MINIAI CREATIVE</p><h2 id="studioTitle">Creative Studio</h2><p>Make images and work with your media.</p></div><button id="studioClose" type="button" aria-label="Close Creative Studio">×</button></header>
+      <nav class="studio-tabs"><button class="active" data-studio-tab="images" type="button">✦ Images</button><button data-studio-tab="videos" type="button">▶ Videos</button></nav>
+      <div class="studio-pane" id="studioImages">
+        <div class="studio-mode"><button class="active" data-image-mode="generate" type="button">Generate image</button><button data-image-mode="edit" type="button">Edit photo</button></div>
+        <label class="studio-label" for="imagePrompt">Describe what you want</label><textarea id="imagePrompt" rows="3" maxlength="1800" placeholder="A dreamy purple city at sunset, cinematic lighting…"></textarea>
+        <label class="studio-upload" id="editImageUpload" hidden>Choose a photo to edit<input id="studioImageFile" type="file" accept="image/png,image/jpeg,image/webp"></label>
+        <img id="studioImagePreview" class="studio-preview" alt="Your image preview" hidden>
+        <button class="studio-primary" id="makeImage" type="button">✦ Generate image</button>
+        <p class="studio-status" id="imageStatus">Image generation uses Cloudflare's free daily AI allowance.</p>
+        <div class="studio-result" id="imageResult" hidden><img id="generatedImage" alt="MiniAI generated result"><a id="downloadImage" download="miniai-image.jpg">Download image ↓</a></div>
+      </div>
+      <div class="studio-pane" id="studioVideos" hidden>
+        <div class="video-note"><strong>AI video generation</strong><p>There isn't a dependable unlimited free video-generation API available for MiniAI right now. This studio includes local video editing and photo-to-motion clips without paid API calls.</p></div>
+        <label class="studio-upload">Choose a video to edit<input id="studioVideoFile" type="file" accept="video/*"></label>
+        <video id="studioVideoPreview" class="studio-video-preview" controls playsinline hidden></video>
+        <div id="videoControls" hidden>
+          <label class="studio-label" for="videoStart">Start time (seconds)</label><input id="videoStart" type="number" min="0" step="0.1" value="0">
+          <label class="studio-label" for="videoEnd">End time (seconds)</label><input id="videoEnd" type="number" min="0" step="0.1" value="10">
+          <label class="studio-label" for="videoSpeed">Playback speed</label><select id="videoSpeed"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="1.5">1.5×</option><option value="2">2×</option></select>
+          <label class="studio-check"><input id="videoMute" type="checkbox"> Mute audio</label>
+          <button class="studio-primary" id="exportVideo" type="button">Export trimmed video</button>
+        </div>
+        <div class="motion-box"><strong>Turn a photo into a motion clip</strong><p>Create a simple animated zoom video from a still image.</p><label class="studio-upload">Choose a photo<input id="motionImageFile" type="file" accept="image/*"></label><button class="studio-primary" id="makeMotion" type="button" disabled>Create 5-second motion clip</button></div>
+        <p class="studio-status" id="videoStatus">Video editing runs in your browser. Export is WebM format.</p>
+      </div>
+    </div>
+  </section>
   <section class="voice-call" id="voiceCall" hidden role="dialog" aria-modal="true" aria-labelledby="voiceCallTitle">
     <div class="voice-call-card"><button class="voice-close" id="voiceClose" type="button" aria-label="Close voice call">×</button><div class="voice-orb" id="voiceOrb">✦</div><p class="voice-eyebrow">MINIAI VOICE</p><h2 id="voiceCallTitle">Talk with MiniAI</h2><p class="voice-status" id="voiceStatus">Ready when you are</p><p class="voice-transcript" id="voiceTranscript">Your conversation will appear in the chat.</p><button class="voice-end" id="voiceEnd" type="button">Start call</button><small class="voice-note">Uses your browser's speech features. Microphone permission is required.</small></div>
   </section>
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js" referrerpolicy="no-referrer"></script>
-  <script src="script.js?v=20261116n"></script>
+  <script src="script.js?v=20261116p"></script>
 </body>
 </html>
