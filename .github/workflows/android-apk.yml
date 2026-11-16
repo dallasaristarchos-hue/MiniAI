@@ -4,8 +4,6 @@ on:
     branches: [main]
     paths: ["android/**", ".github/workflows/android-apk.yml"]
   workflow_dispatch:
-permissions:
-  contents: write
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -62,8 +60,8 @@ jobs:
           rm -f android/upload-keystore.jks
       - uses: softprops/action-gh-release@v2
         with:
-          tag_name: miniai-v2.4.${{ github.run_number }}
-          name: MiniAI Android v2.4.${{ github.run_number }}
+          tag_name: miniai-v2.5.${{ github.run_number }}
+          name: MiniAI Android v2.5.${{ github.run_number }}
           files: ${{ env.RELEASE_FILES }}
           make_latest: true
           generate_release_notes: true
