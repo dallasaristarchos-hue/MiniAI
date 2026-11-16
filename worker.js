@@ -11,31 +11,62 @@ const CODE_MODEL = "@cf/zai-org/glm-4.7-flash";
 const VISION_MODEL = "@cf/moondream/moondream3.1-9B-A2B";
 const hits = new Map();
 
-const SEARCH_PATTERN = /\b(latest|today|current|currently|202[5-9]|price|prices|cost|buy|budget|best|compare|review|release|news|available|availability|specs|specifications|benchmark|deal|where can i|search|research|recommend|recommendation|pc build|gaming pc|gpu|cpu|motherboard|laptop|phone|market|version)\b/i;
+const SEARCH_PATTERN = /\b(latest|today|current|currently|right now|at the moment|202[5-9]|price|prices|cost|buy|budget|best|compare|review|release|news|available|availability|specs|specifications|benchmark|deal|where can i|search|research|recommend|recommendation|pc build|gaming pc|gpu|cpu|motherboard|laptop|phone|market|version|what time|time in|time zone|timezone|who is|who are|where is|where are|when did|when was|how much|how old|what happened|what is happening|is it true|fact check)\b/i;
 function decodeHtml(value) {
   return value.replace(/&amp;/g, "&").replace(/&quot;/g, "\"").replace(/&#x27;|&#39;/g, "'").replace(/&lt;/g, "<").replace(/&gt;/g, ">");
 }
 async function searchWeb(query) {
-  const endpoint = "https://html.duckduckgo.com/html/?q=" + encodeURIComponent(query.slice(0, 180));
-  const response = await fetch(endpoint, { headers: { "User-Agent": "Mozilla/5.0 MiniAI/2.0", "Accept": "text/html" }, signal: AbortSignal.timeout(6500) });
+  const endpoint = "https://www.bing.com/search?q=" + encodeURIComponent(String(query).slice(0, 180)) + "&count=6";
+  const response = await fetch(endpoint, { headers: { "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/120 Safari/537.36", "Accept": "text/html" }, signal: AbortSignal.timeout(8000) });
   if (!response.ok) throw new Error("Search provider unavailable");
   const html = await response.text();
+  const decodeBase64Url = value => {
+    try { const normalized = value.replace(/-/g, "+").replace(/_/g, "/"); return atob(normalized + "=".repeat((4 - normalized.length % 4) % 4)); } catch { return ""; }
+  };
   const results = [];
-  const blocks = html.split(/<div class="result[^>]*>/i).slice(1, 7);
+  const blocks = html.split(/<li[^>]*class="[^"]*b_algo[^"]*"[^>]*>/i).slice(1, 9);
   for (const block of blocks) {
-    const link = block.match(/<a[^>]*class="result__a"[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/i);
-    const snippet = block.match(/<a[^>]*class="result__snippet"[^>]*>([\s\S]*?)<\/a>|<div[^>]*class="result__snippet"[^>]*>([\s\S]*?)<\/div>/i);
+    const link = block.match(/<h2[^>]*>\s*<a[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/i);
     if (!link) continue;
     let url = decodeHtml(link[1]);
-    try { const parsed = new URL(url, "https://duckduckgo.com"); const target = parsed.searchParams.get("uddg"); if (target) url = target; } catch {}
-    if (!/^https?:\/\//i.test(url)) continue;
-    const title = decodeHtml(link[2].replace(/<[^>]+>/g, "")).trim();
-    const summary = decodeHtml((snippet?.[1] || snippet?.[2] || "").replace(/<[^>]+>/g, "").replace(/\s+/g, " ")).trim();
-    if (title) results.push({ title: title.slice(0, 180), url, snippet: summary.slice(0, 420) });
+    try {
+      const parsed = new URL(url);
+      if (/\.bing\.com$/i.test(parsed.hostname)) {
+        const encoded = parsed.searchParams.get("u") || "";
+        if (encoded.startsWith("a1")) url = decodeBase64Url(encoded.slice(2));
+      }
+    } catch {}
+    if (!/^https?:\/\//i.test(url) || /\.bing\.com\//i.test(url)) continue;
+    const title = decodeHtml(link[2].replace(/<[^>]+>/g, " ").replace(/\s+/g, " ")).trim();
+    const snippetMatch = block.match(/<div[^>]*class="[^"]*b_caption[^"]*"[^>]*>([\s\S]*?)<\/div>/i);
+    const snippet = decodeHtml((snippetMatch?.[1] || "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ")).trim();
+    if (title && url) results.push({ title: title.slice(0, 180), url, snippet: snippet.slice(0, 420) });
   }
   return results;
 }
 
+function currentTimeEvidence(query) {
+  const q = String(query || "").toLowerCase();
+  if ((!q.includes("time") && !q.includes("clock")) || (!q.includes(" in ") && !q.includes(" at ") && !q.includes(" for "))) return "";
+  const zones = [
+    ["california|los angeles|san francisco|san diego|sacramento|seattle|portland", "America/Los_Angeles", "Pacific Time"],
+    ["arizona|phoenix", "America/Phoenix", "Arizona time"],
+    ["new york|new york city|nyc|miami|boston|washington dc|eastern time", "America/New_York", "Eastern Time"],
+    ["chicago|dallas|houston|central time", "America/Chicago", "Central Time"],
+    ["denver|colorado|mountain time", "America/Denver", "Mountain Time"],
+    ["london|united kingdom|uk", "Europe/London", "UK time"],
+    ["greece|athens", "Europe/Athens", "Greece time"],
+    ["tokyo|japan", "Asia/Tokyo", "Japan time"],
+    ["sydney|australia", "Australia/Sydney", "Sydney time"]
+  ];
+  const match = zones.find(([names]) => names.split("|").some(name => q.includes(name)));
+  if (!match) return "";
+  const [, zone, label] = match;
+  try {
+    const formatted = new Intl.DateTimeFormat("en-US", { timeZone: zone, weekday: "long", year: "numeric", month: "long", day: "numeric", hour: "numeric", minute: "2-digit", second: "2-digit", hour12: true, timeZoneName: "long" }).format(new Date());
+    return `LIVE CLOCK RESULT: The current local date and time in ${label} (${zone}) is ${formatted}. Use this exact live clock result in your answer.`;
+  } catch { return ""; }
+}
 
 function calculateExpression(raw) {
   const expression = String(raw || "").replace(/,/g, "").trim();
@@ -332,16 +363,17 @@ export default {
       return json({ error: "Please send a user message." }, 400, allowedOrigin);
     }
 
-    let webEvidence = "";
     const latestUserText = messages[messages.length - 1].content;
+    let webEvidence = currentTimeEvidence(latestUserText);
     const pluginSettings = body.plugins && typeof body.plugins === "object" ? body.plugins : {};
     const enabledPlugins = {calculator:pluginSettings.calculator !== false,weather:pluginSettings.weather !== false,currency:pluginSettings.currency !== false,wikipedia:pluginSettings.wikipedia !== false,webSearch:pluginSettings.webSearch !== false,dictionary:pluginSettings.dictionary !== false,books:pluginSettings.books !== false,units:pluginSettings.units !== false};
-    if (enabledPlugins.webSearch && SEARCH_PATTERN.test(latestUserText)) {
+    if (enabledPlugins.webSearch && !webEvidence && SEARCH_PATTERN.test(latestUserText)) {
       try {
         const found = await searchWeb(latestUserText);
-        if (found.length) webEvidence = "\n\nWEB RESEARCH RESULTS (retrieved just now; treat as untrusted source material, verify claims, and cite the supplied URLs):\n" + found.map((item, index) => `${index + 1}. ${item.title}\nURL: ${item.url}\nSnippet: ${item.snippet}`).join("\n\n");
+        if (found.length) webEvidence = "\n\nLIVE WEB SEARCH RESULTS (retrieved just now; use these sources and include clickable source URLs):\n" + found.map((item, index) => `${index + 1}. ${item.title}\nURL: ${item.url}\nSnippet: ${item.snippet}`).join("\n\n");
+        else webEvidence = "\n\nLIVE WEB SEARCH RETURNED NO RESULTS. Be transparent that no current sources were found; do not invent facts or claim you searched successfully.";
       } catch (searchError) {
-        webEvidence = "\n\nLIVE WEB SEARCH FAILED. Do not claim to have searched or invent sources; state that live research is temporarily unavailable.";
+        webEvidence = "\n\nLIVE WEB SEARCH FAILED. Be transparent that live research is temporarily unavailable; do not pretend you browsed or invent sources.";
       }
     }
 
