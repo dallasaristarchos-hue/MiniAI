@@ -7,6 +7,7 @@ import android.content.pm.PackageManager
 import android.graphics.Color
 import android.net.Uri
 import android.os.Bundle
+import android.view.WindowInsets
 import android.os.Build
 import android.window.OnBackInvokedCallback
 import android.window.OnBackInvokedDispatcher
@@ -28,8 +29,8 @@ class MainActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        window.statusBarColor = Color.rgb(16, 11, 28)
-        window.navigationBarColor = Color.rgb(16, 11, 28)
+        window.statusBarColor = Color.rgb(5, 5, 6)
+        window.navigationBarColor = Color.rgb(5, 5, 6)
         webView = WebView(this)
         webView.settings.javaScriptEnabled = true
         webView.settings.domStorageEnabled = true
@@ -81,6 +82,14 @@ class MainActivity : Activity() {
             }
         }
         setContentView(webView)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            webView.setOnApplyWindowInsetsListener { view, insets ->
+                val safe = insets.getInsets(WindowInsets.Type.systemBars() or WindowInsets.Type.displayCutout())
+                view.setPadding(safe.left, safe.top, safe.right, safe.bottom)
+                insets
+            }
+            webView.requestApplyInsets()
+        }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             systemBackCallback = OnBackInvokedCallback { handleSystemBack() }
             onBackInvokedDispatcher.registerOnBackInvokedCallback(OnBackInvokedDispatcher.PRIORITY_DEFAULT, systemBackCallback!!)
