@@ -15,8 +15,43 @@ const SEARCH_PATTERN = /\b(latest|today|current|currently|right now|at the momen
 function decodeHtml(value) {
   return value.replace(/&amp;/g, "&").replace(/&quot;/g, "\"").replace(/&#x27;|&#39;/g, "'").replace(/&lt;/g, "<").replace(/&gt;/g, ">");
 }
+async function searchNewsRss(query) {
+  const originalQuery = String(query).slice(0, 180);
+  const cleaned = originalQuery.replace(/\b(what|when|where|which|who|whom|whose|why|how|does|do|did|is|are|was|were|the|and|for|from|with|about|please|could|would|should|latest|today|current|currently|major|recent|right now|at the moment)\b/gi, " ").replace(/[?]/g, " ").replace(/\s+/g, " ").trim();
+  const days = /\b(today|right now|at the moment)\b/i.test(originalQuery) ? "1d" : "7d";
+  const endpoint = "https://news.google.com/rss/search?q=" + encodeURIComponent(cleaned + " when:" + days) + "&hl=en-US&gl=US&ceid=US:en";
+  const response = await fetch(endpoint, { headers: { "User-Agent": "Mozilla/5.0 MiniAI/2.0", "Accept": "application/rss+xml, application/xml, text/xml" }, signal: AbortSignal.timeout(8000) });
+  if (!response.ok) throw new Error("News search provider unavailable");
+  const xml = await response.text();
+  const field = (block, tag) => {
+    const match = block.match(new RegExp("<" + tag + ">(.*?)</" + tag + ">", "is"));
+    return match ? decodeHtml(match[1].replace(/<!\[CDATA\[|\]\]>/g, "").replace(/<[^>]+>/g, " ").trim()) : "";
+  };
+  const results = [];
+  const blocks = xml.match(/<item>[\s\S]*?<\/item>/gi) || [];
+  for (const block of blocks.slice(0, 8)) {
+    const title = field(block, "title");
+    const url = field(block, "link");
+    const snippet = field(block, "description");
+    const published = field(block, "pubDate");
+    const source = field(block, "source");
+    if (title && /^https?:\/\//i.test(url)) results.push({ title: title.slice(0, 180), url, snippet: `${source ? source + ". " : ""}${published ? "Published: " + published + ". " : ""}${snippet}`.slice(0, 520) });
+  }
+  const stopWords = new Set(["what","when","where","which","who","whom","whose","why","how","does","do","did","is","are","was","were","the","and","for","from","with","about","into","today","latest","current","currently","right","now","news","announcements","announcement","updates","update","headlines","major","some","give","tell","show","find","search","please","could","would","should","have","has","had","this","that","these","those","time","much","many","best"]);
+  const focusTerms = (originalQuery.toLowerCase().match(/[a-z0-9]{4,}/g) || []).filter(term => !stopWords.has(term));
+  return results.filter(item => {
+    const haystack = `${item.title} ${item.snippet} ${item.url}`.toLowerCase();
+    const matches = focusTerms.filter(term => haystack.includes(term)).length;
+    return focusTerms.length === 0 || matches >= (focusTerms.length >= 2 ? 2 : 1);
+  });
+}
+
 async function searchWeb(query) {
   const originalQuery = String(query).slice(0, 180);
+  if (/\b(news|announcements?|headlines|updates?)\b/i.test(originalQuery)) {
+    const news = await searchNewsRss(originalQuery);
+    if (news.length) return news;
+  }
   const cleanedQuery = originalQuery.replace(/\b(what|when|where|which|who|whom|whose|why|how|does|do|did|is|are|was|were|the|and|for|from|with|about|please|could|would|should)\b/gi, " ").replace(/[?]/g, " ").replace(/\s+/g, " ").trim();
   const freshnessRequested = /\b(latest|today|current|currently|right now|at the moment|news|recent)\b/i.test(originalQuery);
   const currentDate = new Intl.DateTimeFormat("en-US", { timeZone: "UTC", month: "long", day: "numeric", year: "numeric" }).format(new Date());
