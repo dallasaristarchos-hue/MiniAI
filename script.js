@@ -141,16 +141,105 @@ studioLaunch.addEventListener("click",()=>{studio.hidden=false;$("#studioImages"
 $("#studioClose").addEventListener("click",closeStudio);
 studio.addEventListener("click",e=>{if(e.target===studio)closeStudio()});
 document.querySelectorAll("[data-studio-tab]").forEach(button=>button.addEventListener("click",()=>{document.querySelectorAll("[data-studio-tab]").forEach(b=>b.classList.toggle("active",b===button));$("#studioImages").hidden=button.dataset.studioTab!=="images";$("#studioVideos").hidden=button.dataset.studioTab!=="videos"}));
-document.querySelectorAll("[data-image-mode]").forEach(button=>button.addEventListener("click",()=>{studioImageMode=button.dataset.imageMode;document.querySelectorAll("[data-image-mode]").forEach(b=>b.classList.toggle("active",b===button));$("#editImageUpload").hidden=studioImageMode!=="edit";$("#makeImage").textContent=studioImageMode==="edit"?"✦ Apply photo edit":"✦ Generate image";$("#imageResult").hidden=true}));
-[["photoBrightness","brightnessValue","%"],["photoContrast","contrastValue","%"],["photoSaturation","saturationValue","%"],["photoBlur","blurValue","px"]].forEach(([id,label,suffix])=>$("#"+id).addEventListener("input",e=>{$("#"+label).textContent=e.target.value+suffix}));
-studioImageFile.addEventListener("change",()=>{const file=studioImageFile.files?.[0];if(!file)return;if(file.size>5*1024*1024){showToast("Choose an image under 5 MB.");studioImageFile.value="";return}const reader=new FileReader();reader.onload=()=>{studioImageData=String(reader.result);studioImagePreview.src=studioImageData;studioImagePreview.hidden=false};reader.readAsDataURL(file)});
-$("#makeImage").addEventListener("click",async()=>{const prompt=$("#imagePrompt").value.trim();if(!prompt){showToast("Describe the image first.");return}if(studioImageMode==="edit"&&!studioImageData){showToast("Choose a photo to edit first.");return}const button=$("#makeImage"),status=$("#imageStatus");button.disabled=true;button.textContent="Creating…";status.textContent="MiniAI is working on your image…";$("#imageResult").hidden=true;try{let output;if(studioImageMode==="edit"){const image=new Image();image.src=studioImageData;await new Promise((resolve,reject)=>{image.onload=resolve;image.onerror=reject});const angle=Number($("#photoRotate").value),swap=angle===90||angle===270,canvas=document.createElement("canvas");canvas.width=swap?image.height:image.width;canvas.height=swap?image.width:image.height;const ctx=canvas.getContext("2d");ctx.translate(canvas.width/2,canvas.height/2);ctx.rotate(angle*Math.PI/180);ctx.filter=`brightness(${$("#photoBrightness").value}%) contrast(${$("#photoContrast").value}%) saturate(${$("#photoSaturation").value}%) blur(${$("#photoBlur").value}px)`;ctx.drawImage(image,-image.width/2,-image.height/2);output=canvas.toDataURL("image/jpeg",.92);status.textContent="Photo edited locally. Download your result below."}else{const response=await fetch(API_URL.replace("/api/chat","/api/image"),{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({mode:"generate",prompt})});const data=await response.json();if(!response.ok)throw new Error(data.error||"Image request failed.");output=data.image;status.textContent="Image created. You can download the result."}$("#generatedImage").src=output;$("#downloadImage").href=output;$("#downloadImage").download=studioImageMode==="edit"?"miniai-edited-photo.jpg":"miniai-image.jpg";$("#imageResult").hidden=false}catch(error){status.textContent=error.message||"Couldn't create the image. Try again."}finally{button.disabled=false;button.textContent=studioImageMode==="edit"?"✦ Apply photo edits":"✦ Generate image"}});
-const studioVideo=$("#studioVideoPreview"), studioVideoInput=$("#studioVideoFile");
-studioVideoInput.addEventListener("change",()=>{const file=studioVideoInput.files?.[0];if(!file)return;if(studioVideoUrl)URL.revokeObjectURL(studioVideoUrl);studioVideoUrl=URL.createObjectURL(file);studioVideo.src=studioVideoUrl;studioVideo.hidden=false;$("#videoControls").hidden=false;$("#videoStatus").textContent="Loading video details…";studioVideo.onloadedmetadata=()=>{$("#videoStart").value="0";$("#videoEnd").value=studioVideo.duration.toFixed(1);$("#videoEnd").max=studioVideo.duration;$("#videoStatus").textContent=`Loaded ${studioVideo.videoWidth}×${studioVideo.videoHeight} video (${studioVideo.duration.toFixed(1)} seconds).`}});
-$("#exportVideo").addEventListener("click",async()=>{if(!studioVideo.src||!window.MediaRecorder||!studioVideo.captureStream){$("#videoStatus").textContent="Video export isn't supported in this browser. Try Chrome on desktop.";return}const start=Math.max(0,Number($("#videoStart").value)||0),end=Math.min(studioVideo.duration,Number($("#videoEnd").value)||studioVideo.duration),speed=Number($("#videoSpeed").value)||1;if(end<=start){showToast("End time must be after start time.");return}const button=$("#exportVideo");button.disabled=true;$("#videoStatus").textContent="Exporting in real time… keep this tab open.";let recorder,frame=0;try{const canvas=document.createElement("canvas");canvas.width=studioVideo.videoWidth||1280;canvas.height=studioVideo.videoHeight||720;const ctx=canvas.getContext("2d");const canvasStream=canvas.captureStream(30);const sourceStream=studioVideo.captureStream();const tracks=[...canvasStream.getVideoTracks(),...($("#videoMute").checked?[]:sourceStream.getAudioTracks())];const stream=new MediaStream(tracks);const mime=MediaRecorder.isTypeSupported("video/webm;codecs=vp9")?"video/webm;codecs=vp9":"video/webm";recorder=new MediaRecorder(stream,{mimeType:mime});const chunks=[];recorder.ondataavailable=e=>{if(e.data.size)chunks.push(e.data)};recorder.onstop=()=>{cancelAnimationFrame(frame);studioVideo.pause();studioVideo.playbackRate=1;stream.getTracks().forEach(t=>t.stop());sourceStream.getTracks().forEach(t=>t.stop());const blob=new Blob(chunks,{type:"video/webm"});const link=document.createElement("a");const url=URL.createObjectURL(blob);link.href=url;link.download="miniai-edited-video.webm";link.click();setTimeout(()=>URL.revokeObjectURL(url),60000);$("#videoStatus").textContent="Export complete. Your edited WebM video has been saved.";button.disabled=false};studioVideo.pause();studioVideo.currentTime=start;await new Promise(resolve=>{if(Math.abs(studioVideo.currentTime-start)<.05)resolve();else studioVideo.onseeked=resolve});studioVideo.playbackRate=speed;recorder.start(250);const draw=()=>{if(studioVideo.readyState>=2){ctx.drawImage(studioVideo,0,0,canvas.width,canvas.height)}if(studioVideo.currentTime>=end||studioVideo.ended){if(recorder.state!=="inactive")recorder.stop();return}frame=requestAnimationFrame(draw)};studioVideo.ontimeupdate=()=>{if(studioVideo.currentTime>=end&&recorder.state!=="inactive")recorder.stop()};await studioVideo.play();draw()}catch(error){if(recorder&&recorder.state!=="inactive")recorder.stop();button.disabled=false;$("#videoStatus").textContent="Export failed: "+(error.message||"unsupported video format")}});
-$("#motionImageFile").addEventListener("change",()=>{const file=$("#motionImageFile").files?.[0];if(!file)return;if(file.size>8*1024*1024){showToast("Choose an image under 8 MB.");return}const img=new Image();img.onload=()=>{motionImage=img;$("#makeMotion").disabled=false;$("#videoStatus").textContent="Photo ready. Create a five-second animated zoom clip."};img.src=URL.createObjectURL(file)});
-$("#makeMotion").addEventListener("click",()=>{if(!motionImage||!window.MediaRecorder){$("#videoStatus").textContent="Motion export isn't supported in this browser.";return}const button=$("#makeMotion");button.disabled=true;const canvas=document.createElement("canvas");canvas.width=1280;canvas.height=720;const ctx=canvas.getContext("2d");const stream=canvas.captureStream(30);const recorder=new MediaRecorder(stream,{mimeType:MediaRecorder.isTypeSupported("video/webm;codecs=vp9")?"video/webm;codecs=vp9":"video/webm"});const chunks=[];recorder.ondataavailable=e=>{if(e.data.size)chunks.push(e.data)};recorder.onstop=()=>{const blob=new Blob(chunks,{type:"video/webm"}),url=URL.createObjectURL(blob),a=document.createElement("a");a.href=url;a.download="miniai-motion-clip.webm";a.click();setTimeout(()=>URL.revokeObjectURL(url),60000);stream.getTracks().forEach(t=>t.stop());button.disabled=false;$("#videoStatus").textContent="Motion clip created and saved as WebM."};const started=performance.now();recorder.start(200);const draw=now=>{const progress=Math.min(1,(now-started)/5000),scale=1+progress*.13;const sw=canvas.width/scale,sh=canvas.height/scale;const iw=motionImage.width,ih=motionImage.height,ratio=Math.max(sw/iw,sh/ih),dw=iw*ratio,dh=ih*ratio;ctx.fillStyle="#100b1c";ctx.fillRect(0,0,canvas.width,canvas.height);ctx.drawImage(motionImage,(canvas.width-dw)/2,(canvas.height-dh)/2,dw,dh);if(progress<1)requestAnimationFrame(draw);else recorder.stop()};requestAnimationFrame(draw)});
-
+document.querySelectorAll("[data-image-mode]").forEach(button=>button.addEventListener("click",()=>{
+  studioImageMode=button.dataset.imageMode;
+  document.querySelectorAll("[data-image-mode]").forEach(b=>b.classList.toggle("active",b===button));
+  $("#editImageUpload").hidden=studioImageMode!=="edit";
+  $("#photoControls").hidden=studioImageMode!=="edit"||!studioImageData;
+  $("#makeImage").textContent=studioImageMode==="edit"?"✦ Apply AI photo edit":"✦ Generate image";
+  $("#imagePrompt").placeholder=studioImageMode==="edit"?"Describe exactly what you want changed in this photo…":"A dreamy purple city at sunset, cinematic lighting…";
+  $("#imageResult").hidden=true;
+}));
+[["photoBrightness","brightnessValue","%"],["photoContrast","contrastValue","%"],["photoSaturation","saturationValue","%"],["photoBlur","blurValue","px"],["photoStrength","strengthValue","%"]].forEach(([id,label,suffix])=>$("#"+id).addEventListener("input",e=>{$("#"+label).textContent=e.target.value+suffix}));
+studioImageFile.addEventListener("change",()=>{
+  const file=studioImageFile.files?.[0];if(!file)return;
+  if(file.size>5*1024*1024){showToast("Choose an image under 5 MB.");studioImageFile.value="";return;}
+  if(!["image/jpeg","image/png","image/webp"].includes(file.type)){showToast("Use a JPG, PNG or WebP photo.");studioImageFile.value="";return;}
+  const reader=new FileReader();reader.onload=()=>{studioImageData=String(reader.result);studioImagePreview.src=studioImageData;studioImagePreview.hidden=false;$("#photoControls").hidden=studioImageMode!=="edit";$("#imageStatus").textContent="Photo ready. Describe your changes and apply an AI edit.";};reader.onerror=()=>showToast("Couldn't read that photo. Try another image.");reader.readAsDataURL(file);
+});
+async function makeEditablePhoto(){
+  const image=new Image();image.src=studioImageData;
+  await new Promise((resolve,reject)=>{image.onload=resolve;image.onerror=()=>reject(new Error("Couldn't open the selected photo."));});
+  const angle=Number($("#photoRotate").value)||0,swap=angle===90||angle===270;
+  const sourceWidth=swap?image.height:image.width,sourceHeight=swap?image.width:image.height;
+  const scale=Math.min(768/Math.max(sourceWidth,sourceHeight),Math.max(256/sourceWidth,256/sourceHeight));
+  const canvas=document.createElement("canvas");canvas.width=Math.max(256,Math.round(sourceWidth*scale));canvas.height=Math.max(256,Math.round(sourceHeight*scale));
+  const ctx=canvas.getContext("2d");if(!ctx)throw new Error("Photo editing isn't supported in this browser.");
+  ctx.translate(canvas.width/2,canvas.height/2);ctx.rotate(angle*Math.PI/180);
+  ctx.filter=`brightness(${$("#photoBrightness").value}%) contrast(${$("#photoContrast").value}%) saturate(${$("#photoSaturation").value}%) blur(${$("#photoBlur").value}px)`;
+  ctx.drawImage(image,-image.width*scale/2,-image.height*scale/2,image.width*scale,image.height*scale);
+  return {data:canvas.toDataURL("image/jpeg",.88),width:canvas.width,height:canvas.height};
+}
+$("#makeImage").addEventListener("click",async()=>{
+  const prompt=$("#imagePrompt").value.trim();
+  if(!prompt){showToast(studioImageMode==="edit"?"Describe the photo changes first.":"Describe the image first.");return;}
+  if(studioImageMode==="edit"&&!studioImageData){showToast("Choose a photo to edit first.");return;}
+  const button=$("#makeImage"),status=$("#imageStatus");button.disabled=true;button.textContent=studioImageMode==="edit"?"Editing with AI…":"Creating image…";status.textContent=studioImageMode==="edit"?"MiniAI is applying your changes while preserving the original photo…":"MiniAI is creating your image…";$("#imageResult").hidden=true;
+  try{
+    const payload={mode:studioImageMode,prompt};
+    if(studioImageMode==="edit"){const photo=await makeEditablePhoto();payload.image=photo.data;payload.width=photo.width;payload.height=photo.height;payload.strength=Number($("#photoStrength").value)/100;}
+    const response=await fetch(API_URL.replace("/api/chat","/api/image"),{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});
+    const data=await response.json().catch(()=>({}));if(!response.ok)throw new Error(data.error||`Image request failed (${response.status}).`);
+    if(typeof data.image!=="string"||!data.image.startsWith("data:image/"))throw new Error("The image service returned an invalid image. Please try again.");
+    $("#generatedImage").src=data.image;$("#downloadImage").href=data.image;$("#downloadImage").download=studioImageMode==="edit"?"miniai-ai-edited-photo.jpg":"miniai-image.jpg";$("#imageResult").hidden=false;
+    status.textContent=studioImageMode==="edit"?"AI edit complete. Your edited photo is ready to save.":"Image created. Your full-resolution result is ready to save.";
+  }catch(error){status.textContent=error.message||"Couldn't process the image. Try again.";}
+  finally{button.disabled=false;button.textContent=studioImageMode==="edit"?"✦ Apply AI photo edit":"✦ Generate image";}
+});
+const studioVideo=$("#studioVideoPreview"),studioVideoInput=$("#studioVideoFile");
+let motionImageUrl="";
+function makeRecorder(stream){const types=["video/webm;codecs=vp9","video/webm;codecs=vp8","video/webm"];const supported=types.find(type=>window.MediaRecorder?.isTypeSupported?.(type));return supported?new MediaRecorder(stream,{mimeType:supported}):new MediaRecorder(stream);}
+studioVideoInput.addEventListener("change",()=>{
+  const file=studioVideoInput.files?.[0];if(!file)return;
+  if(studioVideoUrl)URL.revokeObjectURL(studioVideoUrl);studioVideoUrl=URL.createObjectURL(file);studioVideo.src=studioVideoUrl;studioVideo.hidden=false;$("#videoControls").hidden=false;$("#videoStatus").textContent="Loading video details…";
+  studioVideo.onloadedmetadata=()=>{$("#videoStart").value="0";$("#videoEnd").value=Math.min(studioVideo.duration,60).toFixed(1);$("#videoEnd").max=studioVideo.duration;$("#videoStatus").textContent=`Loaded ${studioVideo.videoWidth}×${studioVideo.videoHeight} video (${studioVideo.duration.toFixed(1)} seconds).`;};
+  studioVideo.onerror=()=>{$("#videoStatus").textContent="This video format can't be previewed in your browser. Try an MP4 or WebM file.";};
+});
+$("#exportVideo").addEventListener("click",async()=>{
+  const capture=studioVideo.captureStream||studioVideo.mozCaptureStream;
+  if(!studioVideo.src||!window.MediaRecorder||!capture){$("#videoStatus").textContent="Video export isn't supported by this browser. Try Chrome or a supported MP4/WebM file.";return;}
+  const start=Math.max(0,Number($("#videoStart").value)||0),end=Math.min(studioVideo.duration,Number($("#videoEnd").value)||studioVideo.duration),speed=Number($("#videoSpeed").value)||1;
+  if(!Number.isFinite(studioVideo.duration)||end<=start){showToast("End time must be after start time.");return;}
+  const button=$("#exportVideo");button.disabled=true;$("#videoStatus").textContent="Preparing export… keep this tab open until it finishes.";
+  let recorder=null,frame=0,stream=null,sourceStream=null,stopped=false;
+  const cleanup=()=>{cancelAnimationFrame(frame);studioVideo.pause();studioVideo.playbackRate=1;stream?.getTracks().forEach(t=>t.stop());sourceStream?.getTracks().forEach(t=>t.stop());button.disabled=false;};
+  try{
+    const canvas=document.createElement("canvas");canvas.width=Math.min(1920,studioVideo.videoWidth||1280);canvas.height=Math.min(1080,studioVideo.videoHeight||720);const ctx=canvas.getContext("2d");
+    const canvasStream=canvas.captureStream(30);sourceStream=capture.call(studioVideo);const tracks=[...canvasStream.getVideoTracks(),...($("#videoMute").checked?[]:sourceStream.getAudioTracks())];stream=new MediaStream(tracks);recorder=makeRecorder(stream);const chunks=[];
+    recorder.ondataavailable=e=>{if(e.data?.size)chunks.push(e.data);};
+    recorder.onerror=()=>{cleanup();$("#videoStatus").textContent="Export failed while recording this video.";};
+    recorder.onstop=()=>{cleanup();if(!chunks.length){$("#videoStatus").textContent="The browser produced an empty video. Try a shorter clip.";return;}const blob=new Blob(chunks,{type:recorder.mimeType||"video/webm"}),url=URL.createObjectURL(blob),a=document.createElement("a");a.href=url;a.download="miniai-edited-video.webm";a.click();setTimeout(()=>URL.revokeObjectURL(url),60000);$("#videoStatus").textContent="Export complete. Your edited WebM video has been saved.";};
+    studioVideo.pause();studioVideo.currentTime=start;await new Promise(resolve=>{if(Math.abs(studioVideo.currentTime-start)<.05)resolve();else studioVideo.addEventListener("seeked",resolve,{once:true});});
+    studioVideo.playbackRate=speed;recorder.start(250);await studioVideo.play();
+    const draw=()=>{if(studioVideo.readyState>=2)ctx.drawImage(studioVideo,0,0,canvas.width,canvas.height);if(studioVideo.currentTime>=end||studioVideo.ended){if(!stopped&&recorder.state!=="inactive"){stopped=true;recorder.stop();}return;}frame=requestAnimationFrame(draw);};draw();
+  }catch(error){if(recorder&&recorder.state!=="inactive")recorder.stop();else cleanup();$("#videoStatus").textContent="Export failed: "+(error.message||"unsupported video format");}
+});
+$("#motionImageFile").addEventListener("change",()=>{
+  const file=$("#motionImageFile").files?.[0];if(!file)return;
+  if(file.size>8*1024*1024){showToast("Choose a photo under 8 MB.");return;}
+  if(motionImageUrl)URL.revokeObjectURL(motionImageUrl);motionImageUrl=URL.createObjectURL(file);const img=new Image();img.onload=()=>{motionImage=img;$("#makeMotion").disabled=false;$("#videoStatus").textContent="Photo ready. Choose a camera move and clip format, then create your video.";};img.onerror=()=>{$("#videoStatus").textContent="Couldn't open that photo. Try a JPG or PNG.";};img.src=motionImageUrl;
+});
+$("#makeMotion").addEventListener("click",()=>{
+  if(!motionImage||!window.MediaRecorder||!HTMLCanvasElement.prototype.captureStream){$("#videoStatus").textContent="Motion video export isn't supported in this browser. Try Chrome on Android.";return;}
+  const button=$("#makeMotion"),duration=Math.max(3,Math.min(15,Number($("#motionDuration").value)||6)),style=$("#motionStyle").value,aspect=$("#motionAspect").value;
+  const dimensions=aspect==="9:16"?[720,1280]:aspect==="1:1"?[960,960]:[1280,720];
+  const canvas=document.createElement("canvas");canvas.width=dimensions[0];canvas.height=dimensions[1];const ctx=canvas.getContext("2d");const stream=canvas.captureStream(30);let recorder;
+  try{recorder=makeRecorder(stream);}catch(error){stream.getTracks().forEach(t=>t.stop());$("#videoStatus").textContent="This browser can't record a WebM video.";return;}
+  button.disabled=true;$("#videoStatus").textContent=`Creating your ${duration}-second ${aspect} motion clip… keep this tab open.`;
+  const chunks=[];let frame=0;const started=performance.now();
+  recorder.ondataavailable=e=>{if(e.data?.size)chunks.push(e.data);};
+  recorder.onerror=()=>{cancelAnimationFrame(frame);stream.getTracks().forEach(t=>t.stop());button.disabled=false;$("#videoStatus").textContent="Motion video export failed. Try a smaller photo.";};
+  recorder.onstop=()=>{cancelAnimationFrame(frame);stream.getTracks().forEach(t=>t.stop());button.disabled=false;if(!chunks.length){$("#videoStatus").textContent="No video frames were recorded. Try again.";return;}const blob=new Blob(chunks,{type:recorder.mimeType||"video/webm"}),url=URL.createObjectURL(blob),a=document.createElement("a");a.href=url;a.download="miniai-motion-clip.webm";a.click();setTimeout(()=>URL.revokeObjectURL(url),60000);$("#videoStatus").textContent="Motion clip created and saved as WebM.";};
+  const cover=Math.max(canvas.width/motionImage.width,canvas.height/motionImage.height),baseW=motionImage.width*cover,baseH=motionImage.height*cover;
+  const draw=now=>{
+    const progress=Math.min(1,(now-started)/(duration*1000)),ease=progress*progress*(3-2*progress);
+    let zoom=style==="zoom-out"?1.18-.16*ease:style==="pan-left"||style==="pan-right"?1.13:1+.14*ease;
+    let panX=0;if(style==="pan-left")panX=(.06-.12*progress)*baseW;else if(style==="pan-right")panX=(-.06+.12*progress)*baseW;else if(style==="cinematic")panX=Math.sin(progress*Math.PI)*.025*baseW;
+    ctx.fillStyle="#100b1c";ctx.fillRect(0,0,canvas.width,canvas.height);ctx.save();ctx.translate(canvas.width/2+panX,canvas.height/2);ctx.scale(zoom,zoom);ctx.drawImage(motionImage,-baseW/2,-baseH/2,baseW,baseH);ctx.restore();
+    if(progress<1)frame=requestAnimationFrame(draw);else if(recorder.state!=="inactive")recorder.stop();
+  };
+  recorder.start(250);frame=requestAnimationFrame(draw);
+});
 document.addEventListener("keydown",event=>{if((event.ctrlKey||event.metaKey)&&event.key.toLowerCase()==="k"){event.preventDefault();makeChat()}if(event.key==="Escape"){closeSidebar();closeAttachMenu()}});
 function updateMobileViewport(){const height=window.innerHeight||document.documentElement.clientHeight;document.documentElement.style.setProperty("--app-height",`${Math.round(height)}px`);}
 updateMobileViewport();window.addEventListener("resize",updateMobileViewport,{passive:true});

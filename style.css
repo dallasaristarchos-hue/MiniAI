@@ -252,3 +252,5 @@ textarea{color:#fff!important}textarea::placeholder{color:#8c8790!important}
 .settings-section-heading{padding-bottom:2px}
 .settings-section-heading .settings-icon{border-radius:12px}
 @media(max-width:600px){.settings-section{padding:15px!important}.setting-label-icon{width:18px;height:18px;flex-basis:18px}.settings-section-heading{gap:9px}}
+
+.studio-hint{display:block;margin:7px 0 10px;color:#a99bb9;font-size:10px;line-height:1.5}

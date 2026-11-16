@@ -479,7 +479,7 @@ export default {
     if (url.pathname === "/api/image" && request.method === "POST") {
       if (!allowedOrigin) return json({ error: "Origin not allowed" }, 403, "");
       if (!env.AI || typeof env.AI.run !== "function") return json({ error: "Image generation is not configured." }, 503, allowedOrigin);
-      if (Number(request.headers.get("Content-Length") || 0) > 16000) return json({ error: "Image prompt is too large." }, 413, allowedOrigin);
+      if (Number(request.headers.get("Content-Length") || 0) > 8 * 1024 * 1024) return json({ error: "Image request is too large. Choose a photo under 5 MB." }, 413, allowedOrigin);
       const ip = request.headers.get("CF-Connecting-IP") || "unknown";
       const now = Date.now();
       const key = "image:" + ip;
@@ -488,37 +488,65 @@ export default {
       previous.count += 1; hits.set(key, previous);
       if (previous.count > 4) return json({ error: "Image limit reached. Please wait a minute and try again." }, 429, allowedOrigin);
       let body;
-      try { body = await request.json(); } catch { return json({ error: "Please provide a valid image prompt." }, 400, allowedOrigin); }
-      const prompt = typeof body.prompt === "string" ? body.prompt.trim().slice(0, 1200) : "";
-      if (!prompt) return json({ error: "Describe the image you want to create." }, 400, allowedOrigin);
+      try { body = await request.json(); } catch { return json({ error: "Please provide a valid image request." }, 400, allowedOrigin); }
+      const prompt = typeof body.prompt === "string" ? body.prompt.trim().slice(0, 1800) : "";
+      const mode = body.mode === "edit" ? "edit" : "generate";
+      if (!prompt) return json({ error: mode === "edit" ? "Describe the changes you want to make to the photo." : "Describe the image you want to create." }, 400, allowedOrigin);
+      let imageB64 = "";
+      if (mode === "edit") {
+        const source = typeof body.image === "string" ? body.image : typeof body.imageData === "string" ? body.imageData : "";
+        const match = source.match(/^data:image\/(?:png|jpeg|jpg|webp);base64,([A-Za-z0-9+/=\r\n]+)$/i);
+        imageB64 = match ? match[1].replace(/\s/g, "") : (typeof body.image_b64 === "string" ? body.image_b64.replace(/\s/g, "") : "");
+        if (!imageB64 || imageB64.length > 7 * 1024 * 1024 || !/^[A-Za-z0-9+/]+={0,2}$/.test(imageB64)) return json({ error: "Choose a valid JPG, PNG or WebP photo under 5 MB." }, 400, allowedOrigin);
+      }
       try {
         let imagePrompt = prompt;
         try {
-          const promptResult = await env.AI.run(MODEL, {
-            messages: [
-              { role: "system", content: "You rewrite user requests into clear, detailed text-to-image prompts. Preserve the exact main subject, objects, number of people or objects, action, setting, and requested style. Do not invent a different subject. Never add robots, androids, humanoid machines, logos, text, or extra characters unless the user explicitly asks for them. If the prompt is in Greek or another language, translate it accurately into natural English. Return only the final image prompt, no commentary." },
-              { role: "user", content: prompt }
-            ],
-            max_tokens: 220,
-            temperature: 0.15,
-            stream: false
-          });
+          const systemPrompt = mode === "edit"
+            ? "You improve instructions for an image-editing model. Preserve the original photo's main subject, identity, pose, and composition unless the user explicitly asks to change them. Apply only the requested changes. Be specific about lighting, colors, background, and style when relevant. Never add unrequested people, logos, text, robots, or objects. Translate accurately to natural English. Return only the final instruction."
+            : "You rewrite requests into clear, detailed text-to-image prompts. Preserve the exact subject, objects, number of people or objects, action, setting, and requested style. Improve composition, lighting, materials, and visual detail without changing the idea. Never add unrequested people, logos, text, robots, or objects. Translate accurately to natural English. Return only the final prompt.";
+          const promptResult = await env.AI.run(MODEL, { messages: [{ role: "system", content: systemPrompt }, { role: "user", content: prompt }], max_tokens: 260, temperature: 0.2, stream: false });
           const improved = typeof promptResult?.response === "string" ? promptResult.response : typeof promptResult?.choices?.[0]?.message?.content === "string" ? promptResult.choices[0].message.content : "";
-          if (improved.trim()) imagePrompt = improved.trim().slice(0, 1800);
-        } catch {}
-        const result = await env.AI.run("@cf/black-forest-labs/flux-1-schnell", { prompt: imagePrompt, steps: 6 });
-        let encoded = result?.image;
-        if (encoded instanceof Uint8Array || encoded instanceof ArrayBuffer) {
-          const bytes = encoded instanceof Uint8Array ? encoded : new Uint8Array(encoded);
+          if (improved.trim()) imagePrompt = improved.trim().slice(0, 2048);
+        } catch (promptError) { console.warn("Image prompt enhancement skipped", promptError?.message || promptError); }
+
+        let result;
+        if (mode === "edit") {
+          const width = Math.max(256, Math.min(768, Math.round((Number(body.width) || 512) / 64) * 64));
+          const height = Math.max(256, Math.min(768, Math.round((Number(body.height) || 512) / 64) * 64));
+          const strength = Math.max(0.25, Math.min(0.85, Number(body.strength) || 0.55));
+          result = await env.AI.run("@cf/runwayml/stable-diffusion-v1-5-img2img", {
+            prompt: imagePrompt, image_b64: imageB64, width, height,
+            num_steps: 20, strength, guidance: 7.5,
+            seed: Math.floor(Math.random() * 2147483647)
+          });
+        } else {
+          result = await env.AI.run("@cf/black-forest-labs/flux-1-schnell", {
+            prompt: imagePrompt, steps: 8, seed: Math.floor(Math.random() * 2147483647)
+          });
+        }
+        let encoded = result?.image ?? result?.output ?? result;
+        if (encoded && typeof encoded.getReader === "function") {
+          const reader = encoded.getReader(); const chunks = []; let total = 0;
+          while (true) { const part = await reader.read(); if (part.done) break; chunks.push(part.value); total += part.value.length; }
+          const bytes = new Uint8Array(total); let offset = 0;
+          for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.length; }
+          encoded = bytes;
+        }
+        if (encoded instanceof ArrayBuffer) encoded = new Uint8Array(encoded);
+        if (Array.isArray(encoded)) encoded = Uint8Array.from(encoded);
+        if (encoded instanceof Uint8Array) {
           let binary = "";
-          for (let offset = 0; offset < bytes.length; offset += 0x8000) binary += String.fromCharCode(...bytes.subarray(offset, offset + 0x8000));
+          for (let offset = 0; offset < encoded.length; offset += 0x8000) binary += String.fromCharCode(...encoded.subarray(offset, offset + 0x8000));
           encoded = btoa(binary);
         }
-        if (typeof encoded !== "string" || !encoded.length) return json({ error: "The image model returned an empty result. Try a different prompt." }, 502, allowedOrigin);
+        if (typeof encoded !== "string" || !encoded.length) throw new Error("The image model returned an empty result.");
         const dataUrl = encoded.startsWith("data:image/") ? encoded : "data:image/jpeg;base64," + encoded;
-        return json({ image: dataUrl }, 200, allowedOrigin);
+        return json({ image: dataUrl, mode }, 200, allowedOrigin);
       } catch (error) {
-        return json({ error: "Image generation is temporarily unavailable. Please try again later." }, 502, allowedOrigin);
+        console.error("MiniAI image request failed", error);
+        const detail = String(error?.message || "model unavailable").replace(/[\r\n]/g, " ").slice(0, 220);
+        return json({ error: (mode === "edit" ? "AI photo editing failed: " : "Image generation failed: ") + detail }, 502, allowedOrigin);
       }
     }
 
