@@ -44,19 +44,19 @@ function closeSidebar(){$("#sidebar").classList.remove("open");$("#sidebarScrim"
 async function checkConnection(){const dot=$("#connectionDot"),side=$("#sidebarStatus"),label=$("#connectionLabel");try{const response=await fetch(API_URL.replace("/api/chat","/health"),{cache:"no-store"});const data=await response.json();const online=response.ok&&data.ok;dot.classList.toggle("offline",!online);side.classList.toggle("offline",!online);label.textContent=online?"MiniAI 2.0":"Reconnecting";side.title=online?"API reachable":"API unavailable"}catch{dot.classList.add("offline");side.classList.add("offline");label.textContent="MiniAI 2.0";side.title="Connection check failed"}}
 
 form.addEventListener("submit",event=>{event.preventDefault();sendMessage(input.value)});
-$("#attachButton").addEventListener("click",()=>$("#fileInput").click());
-$("#fileInput").addEventListener("change",async event=>{await readSelectedFiles(event.target.files);event.target.value=""});
+const attachButton=$("#attachButton"),attachMenu=$("#attachMenu");
+function closeAttachMenu(){attachMenu.hidden=true;attachButton.setAttribute("aria-expanded","false")}
+attachButton.addEventListener("click",()=>{attachMenu.hidden=!attachMenu.hidden;attachButton.setAttribute("aria-expanded",String(!attachMenu.hidden))});
+attachMenu.addEventListener("click",event=>{const choice=event.target.closest("[data-pick]");if(!choice)return;const picker={files:"#fileInput",camera:"#cameraInput",gallery:"#galleryInput"}[choice.dataset.pick];closeAttachMenu();$(picker).click()});
+["#fileInput","#folderInput","#cameraInput","#galleryInput"].forEach(selector=>$(selector).addEventListener("change",async event=>{await readSelectedFiles(event.target.files);event.target.value=""}));
 input.addEventListener("input",()=>{input.style.height="auto";input.style.height=Math.min(input.scrollHeight,150)+"px"});
 input.addEventListener("keydown",event=>{if(event.key==="Enter"&&!event.shiftKey){event.preventDefault();form.requestSubmit()}});
-$("#pluginsButton").addEventListener("click",()=>{$("#pluginModal").hidden=false});
-function closePluginModal(){$("#pluginModal").hidden=true}
-$("#pluginClose").addEventListener("click",closePluginModal);$("#pluginDone").addEventListener("click",closePluginModal);$("#pluginModal").addEventListener("click",event=>{if(event.target.id==="pluginModal")closePluginModal()});
 $("#newChat").addEventListener("click",makeChat);$("#mobileMenu").addEventListener("click",openSidebar);$("#closeSidebar").addEventListener("click",closeSidebar);$("#sidebarScrim").addEventListener("click",closeSidebar);$("#clearChat").addEventListener("click",resetCurrentChat);$("#exportChat").addEventListener("click",exportChat);
 $("#searchToggle").addEventListener("click",()=>{$("#historySearchWrap").classList.toggle("visible");if($("#historySearchWrap").classList.contains("visible"))$("#historySearch").focus();else{$("#historySearch").value="";renderHistory()}});
 $("#historySearch").addEventListener("input",renderHistory);
 $("#historyList").addEventListener("click",event=>{const button=event.target.closest("[data-delete-chat]");if(button){event.stopPropagation();deleteChat(button.dataset.deleteChat)}});
 messagesEl.addEventListener("click",async event=>{const button=event.target.closest("[data-action]");if(!button)return;const row=button.closest(".message");if(button.dataset.action==="copy-message"){try{await navigator.clipboard.writeText(row.__messageText);showToast("Copied to clipboard")}catch{showToast("Clipboard unavailable in this browser")}}if(button.dataset.action==="copy-code"){const code=row.querySelector("pre")?.textContent||"";try{await navigator.clipboard.writeText(code);button.textContent="Copied";setTimeout(()=>button.textContent="Copy code",1300)}catch{showToast("Clipboard unavailable")}}if(button.dataset.action==="retry")retryLast()});
-document.addEventListener("keydown",event=>{if((event.ctrlKey||event.metaKey)&&event.key.toLowerCase()==="k"){event.preventDefault();makeChat()}if(event.key==="Escape")closeSidebar()});
+document.addEventListener("keydown",event=>{if((event.ctrlKey||event.metaKey)&&event.key.toLowerCase()==="k"){event.preventDefault();makeChat()}if(event.key==="Escape"){closeSidebar();closeAttachMenu()}});
 function updateMobileViewport(){const height=window.innerHeight||document.documentElement.clientHeight;document.documentElement.style.setProperty("--app-height",`${Math.round(height)}px`);}
 updateMobileViewport();window.addEventListener("resize",updateMobileViewport,{passive:true});
 if(!currentChat()){const chat={id:uid(),title:"New conversation",updatedAt:Date.now(),messages:[]};chats.unshift(chat);activeId=chat.id;save()}renderAll();checkConnection();

@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=20261116k">
+  <link rel="stylesheet" href="style.css?v=20261116m">
 </head>
 <body>
   <div class="app-shell">
@@ -22,7 +22,6 @@
       <div class="history-heading"><span class="section-label">YOUR CONVERSATIONS</span><button class="icon-button tiny" id="searchToggle" type="button" aria-label="Search chats" title="Search chats">⌕</button></div>
       <label class="history-search" id="historySearchWrap"><span>⌕</span><input id="historySearch" type="search" placeholder="Search chats…" autocomplete="off"></label>
       <nav class="history-list" id="historyList" aria-label="Recent conversations"></nav>
-      <button class="plugins-button" id="pluginsButton" type="button"><span>✣</span><span><strong>Integrations</strong><small>Connect external tools</small></span><b>›</b></button>
       <div class="sidebar-bottom">
         <div class="upgrade-card"><span class="upgrade-sparkle">✧</span><div><strong>Made with curiosity</strong><small>A little space for big ideas.</small></div></div>
         <div class="profile-row"><div class="profile-avatar">M</div><div class="profile-copy"><strong>MiniAI</strong><small>Personal assistant</small></div><span class="online-dot" id="sidebarStatus" title="Checking connection"></span></div>
@@ -58,8 +57,11 @@
         <form class="composer" id="chatForm">
           <label class="sr-only" for="messageInput">Message MiniAI</label>
           <textarea id="messageInput" rows="1" maxlength="6000" placeholder="Ask MiniAI anything…" autocomplete="off"></textarea>
-          <input id="fileInput" class="sr-only" type="file" multiple accept="image/*,.txt,.md,.csv,.json,.js,.ts,.jsx,.tsx,.py,.html,.css,.xml,.yaml,.yml,.log,.pdf">
-          <div class="composer-tools"><button class="attach-button" id="attachButton" type="button" aria-label="Attach files" title="Attach images or documents">＋</button><span class="input-hint">↵ send · shift + ↵ new line</span><button class="send-button" id="sendButton" type="submit" aria-label="Send message"><span>↑</span></button></div>
+          <input id="fileInput" class="sr-only" type="file" multiple accept=".txt,.md,.csv,.json,.js,.ts,.jsx,.tsx,.py,.html,.css,.xml,.yaml,.yml,.log,.pdf,image/*">
+          <input id="folderInput" class="sr-only" type="file" webkitdirectory directory multiple>
+          <input id="cameraInput" class="sr-only" type="file" accept="image/*" capture="environment">
+          <input id="galleryInput" class="sr-only" type="file" accept="image/*" multiple>
+          <div class="composer-tools"><div class="attach-wrap"><button class="attach-button" id="attachButton" type="button" aria-label="Add attachment" aria-expanded="false" aria-controls="attachMenu" title="Add attachment">＋</button><div class="attach-menu" id="attachMenu" hidden><button type="button" data-pick="files"><span>▤</span> Files / folders</button><button type="button" data-pick="camera"><span>◎</span> Camera</button><button type="button" data-pick="gallery"><span>▧</span> Gallery</button></div></div><span class="input-hint">↵ send · shift + ↵ new line</span><button class="send-button" id="sendButton" type="submit" aria-label="Send message"><span>↑</span></button></div>
         </form>
         <p class="disclaimer">MiniAI can make mistakes. Verify important information. <span>✦</span></p>
       </footer>
@@ -67,8 +69,7 @@
   </div>
   <button class="sidebar-scrim" id="sidebarScrim" type="button" aria-label="Close navigation menu"></button>
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
-  <div class="plugin-modal" id="pluginModal" hidden role="dialog" aria-modal="true" aria-labelledby="pluginTitle"><div class="plugin-card"><button class="plugin-close" id="pluginClose" type="button" aria-label="Close">×</button><p class="eyebrow">MINIAI EXTENSIONS</p><h2 id="pluginTitle">Integrations</h2><p class="plugin-intro">Connect MiniAI to external services and let it work with your tools.</p><div class="plugin-entry"><div class="plugin-icon">C</div><div><strong>Composio</strong><small>Connect apps such as GitHub, Google services, Slack and more.</small><span class="plugin-state">Setup required</span></div></div><p class="plugin-note">To activate this safely, MiniAI needs a Composio API key stored as a secret on its Cloudflare Worker (<code>COMPOSIO_API_KEY</code>). Never paste that key into the website or a public chat. No external account is connected yet.</p><button class="plugin-done" id="pluginDone" type="button">Got it</button></div></div>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js" referrerpolicy="no-referrer"></script>
-  <script src="script.js?v=20261116k"></script>
+  <script src="script.js?v=20261116m"></script>
 </body>
 </html>
