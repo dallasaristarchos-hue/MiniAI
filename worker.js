@@ -112,6 +112,37 @@ export default {
       }, 200, allowedOrigin);
     }
 
+    if (url.pathname === "/api/image" && request.method === "POST") {
+      if (!allowedOrigin) return json({ error: "Origin not allowed" }, 403, "");
+      if (!env.AI || typeof env.AI.run !== "function") return json({ error: "Image generation is not configured." }, 503, allowedOrigin);
+      const ip = request.headers.get("CF-Connecting-IP") || "unknown";
+      const now = Date.now();
+      const key = "image:" + ip;
+      const previous = hits.get(key) || { start: now, count: 0 };
+      if (now - previous.start >= WINDOW_MS) { previous.start = now; previous.count = 0; }
+      previous.count += 1; hits.set(key, previous);
+      if (previous.count > 4) return json({ error: "Image limit reached. Please wait a minute and try again." }, 429, allowedOrigin);
+      let body;
+      try { body = await request.json(); } catch { return json({ error: "Please provide a valid image prompt." }, 400, allowedOrigin); }
+      const prompt = typeof body.prompt === "string" ? body.prompt.trim().slice(0, 1200) : "";
+      if (!prompt) return json({ error: "Describe the image you want to create." }, 400, allowedOrigin);
+      try {
+        const result = await env.AI.run("@cf/black-forest-labs/flux-1-schnell", { prompt, steps: 4 });
+        let encoded = result?.image;
+        if (encoded instanceof Uint8Array || encoded instanceof ArrayBuffer) {
+          const bytes = encoded instanceof Uint8Array ? encoded : new Uint8Array(encoded);
+          let binary = "";
+          for (let offset = 0; offset < bytes.length; offset += 0x8000) binary += String.fromCharCode(...bytes.subarray(offset, offset + 0x8000));
+          encoded = btoa(binary);
+        }
+        if (typeof encoded !== "string" || !encoded.length) return json({ error: "The image model returned an empty result. Try a different prompt." }, 502, allowedOrigin);
+        const dataUrl = encoded.startsWith("data:image/") ? encoded : "data:image/jpeg;base64," + encoded;
+        return json({ image: dataUrl }, 200, allowedOrigin);
+      } catch (error) {
+        return json({ error: "Image generation is temporarily unavailable. Please try again later." }, 502, allowedOrigin);
+      }
+    }
+
     if (url.pathname !== "/api/chat" || request.method !== "POST") {
       return json({ error: "Not found" }, 404, allowedOrigin);
     }
