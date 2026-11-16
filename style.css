@@ -213,3 +213,6 @@ textarea{color:#fff!important}textarea::placeholder{color:#8c8790!important}
 
 /* Stable live text while MiniAI streams tokens */
 .bubble.streaming{white-space:pre-wrap;overflow-wrap:anywhere;word-break:normal;min-height:1.5em}
+
+.message-author{margin:0 0 5px 2px;color:#d6b9ef;font-size:11px;font-weight:700;letter-spacing:.2px}
+.setting-field input[type=text]{width:100%;min-height:42px;padding:9px 12px;border:1px solid #ffffff24;border-radius:10px;background:#151218;color:#fff;font:inherit}
