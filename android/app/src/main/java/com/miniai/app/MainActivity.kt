@@ -30,10 +30,14 @@ class MainActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        window.statusBarColor = Color.rgb(5, 5, 6)
-        window.navigationBarColor = Color.rgb(5, 5, 6)
-        window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
+        window.statusBarColor = Color.BLACK
+        window.navigationBarColor = Color.BLACK
+        window.setSoftInputMode(
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING
+            else WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE
+        )
         webView = WebView(this)
+        webView.setBackgroundColor(Color.BLACK)
         webView.settings.javaScriptEnabled = true
         webView.settings.domStorageEnabled = true
         webView.settings.allowFileAccess = false
@@ -83,17 +87,20 @@ class MainActivity : Activity() {
                 }
             }
         }
-        setContentView(webView)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            webView.setOnApplyWindowInsetsListener { view, insets ->
+        webView.setOnApplyWindowInsetsListener { view, insets ->
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
                 val systemBars = insets.getInsets(WindowInsets.Type.systemBars() or WindowInsets.Type.displayCutout())
                 val ime = insets.getInsets(WindowInsets.Type.ime())
-                val bottomInset = maxOf(systemBars.bottom, ime.bottom)
+                val bottomInset = if (insets.isVisible(WindowInsets.Type.ime())) maxOf(systemBars.bottom, ime.bottom) else systemBars.bottom
                 view.setPadding(systemBars.left, systemBars.top, systemBars.right, bottomInset)
-                insets
+            } else {
+                @Suppress("DEPRECATION")
+                view.setPadding(insets.systemWindowInsetLeft, insets.systemWindowInsetTop, insets.systemWindowInsetRight, insets.systemWindowInsetBottom)
             }
-            webView.requestApplyInsets()
+            insets
         }
+        setContentView(webView)
+        webView.requestApplyInsets()
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             systemBackCallback = OnBackInvokedCallback { handleSystemBack() }
             onBackInvokedDispatcher.registerOnBackInvokedCallback(OnBackInvokedDispatcher.PRIORITY_DEFAULT, systemBackCallback!!)

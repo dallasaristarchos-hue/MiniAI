@@ -244,8 +244,28 @@ $("#makeMotion").addEventListener("click",()=>{
   recorder.start(250);frame=requestAnimationFrame(draw);
 });
 document.addEventListener("keydown",event=>{if((event.ctrlKey||event.metaKey)&&event.key.toLowerCase()==="k"){event.preventDefault();makeChat()}if(event.key==="Escape"){closeSidebar();closeAttachMenu()}});
-function updateMobileViewport(){const viewport=window.visualViewport;const height=viewport?.height||window.innerHeight||document.documentElement.clientHeight;const offset=viewport?.offsetTop||0;document.documentElement.style.setProperty("--app-height",`${Math.round(height)}px`);document.documentElement.style.setProperty("--app-offset-top",`${Math.round(offset)}px`);}
-updateMobileViewport();window.addEventListener("resize",updateMobileViewport,{passive:true});window.visualViewport?.addEventListener("resize",updateMobileViewport,{passive:true});window.visualViewport?.addEventListener("scroll",updateMobileViewport,{passive:true});
+function updateMobileViewport(){
+  const viewport=window.visualViewport;
+  const layoutHeight=window.innerHeight||document.documentElement.clientHeight;
+  const height=viewport?Math.min(layoutHeight,viewport.height):layoutHeight;
+  const offset=viewport?.offsetTop||0;
+  document.documentElement.style.setProperty("--app-height",`${Math.round(height)}px`);
+  document.documentElement.style.setProperty("--app-offset-top",`${Math.round(offset)}px`);
+  document.documentElement.classList.toggle("keyboard-open",Boolean(input&&document.activeElement===input));
+}
+function keepMessageFieldVisible(){
+  updateMobileViewport();
+  requestAnimationFrame(()=>{
+    updateMobileViewport();
+    if(document.activeElement===input) input.scrollIntoView({block:"nearest",behavior:"auto"});
+  });
+}
+updateMobileViewport();
+window.addEventListener("resize",updateMobileViewport,{passive:true});
+window.addEventListener("orientationchange",()=>requestAnimationFrame(updateMobileViewport),{passive:true});
+window.visualViewport?.addEventListener("resize",()=>{updateMobileViewport();if(document.activeElement===input)requestAnimationFrame(keepMessageFieldVisible);},{passive:true});
+window.visualViewport?.addEventListener("scroll",updateMobileViewport,{passive:true});
+input?.addEventListener("focus",keepMessageFieldVisible);
 // PWA installation and offline app shell
 let deferredInstallPrompt = null;
 const installPwaButton = document.querySelector("#installPwa");
