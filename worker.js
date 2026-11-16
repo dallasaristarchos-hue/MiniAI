@@ -6,6 +6,7 @@ const ALLOWED_ORIGINS = new Set([
 ]);
 const WINDOW_MS = 60_000;
 const MAX_REQUESTS_PER_WINDOW = 12;
+const MAX_REQUEST_BODY_BYTES = 20 * 1024 * 1024;
 const MODEL = "@cf/zai-org/glm-4.7-flash";
 const CODE_MODEL = "@cf/zai-org/glm-4.7-flash";
 const VISION_MODEL = "@cf/moondream/moondream3.1-9B-A2B";
@@ -49,8 +50,10 @@ async function searchNewsRss(query) {
 async function searchWeb(query) {
   const originalQuery = String(query).slice(0, 180);
   if (/\b(news|announcements?|headlines|updates?)\b/i.test(originalQuery)) {
-    const news = await searchNewsRss(originalQuery);
-    if (news.length) return news;
+    try {
+      const news = await searchNewsRss(originalQuery);
+      if (news.length) return news;
+    } catch {}
   }
   const cleanedQuery = originalQuery.replace(/\b(what|when|where|which|who|whom|whose|why|how|does|do|did|is|are|was|were|the|and|for|from|with|about|please|could|would|should)\b/gi, " ").replace(/[?]/g, " ").replace(/\s+/g, " ").trim();
   const freshnessRequested = /\b(latest|today|current|currently|right now|at the moment|news|recent)\b/i.test(originalQuery);
@@ -271,6 +274,10 @@ export default {
     const origin = request.headers.get("Origin") || "";
     const allowedOrigin = ALLOWED_ORIGINS.has(origin) ? origin : "";
     const url = new URL(request.url);
+    if (hits.size > 2000) {
+      const cutoff = Date.now() - WINDOW_MS * 3;
+      for (const [key, value] of hits) if (value.start < cutoff) hits.delete(key);
+    }
 
     if (request.method === "OPTIONS") {
       if (!allowedOrigin) return new Response(null, { status: 403 });
@@ -286,10 +293,48 @@ export default {
       });
     }
 
+    if (url.pathname === "/api/ratings") {
+      if (!allowedOrigin) return json({ error: "Origin not allowed" }, 403, "");
+      if (!env.DB) return json({ error: "Ratings are temporarily unavailable." }, 503, allowedOrigin);
+      try {
+        if (request.method === "GET") {
+          const summary = await env.DB.prepare("SELECT COUNT(*) AS count, ROUND(AVG(rating), 1) AS average FROM ratings").first();
+          const grouped = await env.DB.prepare("SELECT rating, COUNT(*) AS count FROM ratings GROUP BY rating").all();
+          const distribution = { "1": 0, "2": 0, "3": 0, "4": 0, "5": 0 };
+          for (const row of (grouped?.results || [])) distribution[String(row.rating)] = Number(row.count) || 0;
+          return json({ count: Number(summary?.count) || 0, average: summary?.average == null ? null : Number(summary.average), distribution }, 200, allowedOrigin);
+        }
+        if (request.method !== "POST") return json({ error: "Method not allowed" }, 405, allowedOrigin);
+        const contentLength = Number(request.headers.get("Content-Length") || 0);
+        if (contentLength > 4096) return json({ error: "Feedback is too long." }, 413, allowedOrigin);
+        const ip = request.headers.get("CF-Connecting-IP") || "unknown";
+        const now = Date.now();
+        const key = "rating:" + ip;
+        const previous = hits.get(key) || { start: now, count: 0 };
+        if (now - previous.start >= WINDOW_MS) { previous.start = now; previous.count = 0; }
+        previous.count += 1;
+        hits.set(key, previous);
+        if (previous.count > 8) return json({ error: "Too many rating updates. Please try again in a minute." }, 429, allowedOrigin);
+        const body = await request.json();
+        const clientId = typeof body.clientId === "string" ? body.clientId : "";
+        const rating = Number(body.rating);
+        const feedback = typeof body.feedback === "string" ? body.feedback.replace(/[\u0000-\u001F\u007F]/g, " ").trim().slice(0, 500) : "";
+        if (!/^[a-zA-Z0-9_-]{16,80}$/.test(clientId)) return json({ error: "Please refresh the page and try again." }, 400, allowedOrigin);
+        if (!Number.isInteger(rating) || rating < 1 || rating > 5) return json({ error: "Choose a rating from 1 to 5 stars." }, 400, allowedOrigin);
+        await env.DB.prepare("INSERT INTO ratings (client_id, rating, feedback, created_at) VALUES (?, ?, ?, ?) ON CONFLICT(client_id) DO UPDATE SET rating = excluded.rating, feedback = excluded.feedback, created_at = excluded.created_at").bind(clientId, rating, feedback, now).run();
+        const summary = await env.DB.prepare("SELECT COUNT(*) AS count, ROUND(AVG(rating), 1) AS average FROM ratings").first();
+        return json({ ok: true, count: Number(summary?.count) || 0, average: summary?.average == null ? null : Number(summary.average) }, 200, allowedOrigin);
+      } catch (error) {
+        return json({ error: "We couldn't save your rating just now. Please try again." }, 500, allowedOrigin);
+      }
+    }
+
     if (url.pathname === "/" || url.pathname === "/health") {
       return json({
         ok: true,
         service: "MiniAI API",
+        version: "2.0.0",
+        ratingsConfigured: Boolean(env.DB),
         configured: Boolean(env.AI && typeof env.AI.run === "function"),
         provider: "Cloudflare Workers AI",
         model: MODEL
@@ -299,6 +344,7 @@ export default {
     if (url.pathname === "/api/image" && request.method === "POST") {
       if (!allowedOrigin) return json({ error: "Origin not allowed" }, 403, "");
       if (!env.AI || typeof env.AI.run !== "function") return json({ error: "Image generation is not configured." }, 503, allowedOrigin);
+      if (Number(request.headers.get("Content-Length") || 0) > 16000) return json({ error: "Image prompt is too large." }, 413, allowedOrigin);
       const ip = request.headers.get("CF-Connecting-IP") || "unknown";
       const now = Date.now();
       const key = "image:" + ip;
@@ -362,6 +408,8 @@ export default {
       return json({ error: "Too many messages. Please wait a minute and try again." }, 429, allowedOrigin);
     }
 
+    const requestBytes = Number(request.headers.get("Content-Length") || 0);
+    if (requestBytes > MAX_REQUEST_BODY_BYTES) return json({ error: "This request is too large. Please reduce the attachments and try again." }, 413, allowedOrigin);
     let body;
     try {
       body = await request.json();
@@ -397,7 +445,9 @@ export default {
     for (const file of attachments) {
       if (file && file.kind === "text" && typeof file.content === "string") attachmentContext += `\n\nATTACHED FILE ${String(file.name||"file").slice(0,100)}:\n${file.content.slice(0,12000)}`;
     }
-    const imageFiles = attachments.filter(file => file && file.kind === "image" && typeof file.dataUrl === "string" && /^data:image\/(png|jpeg|jpg|webp|gif);base64,/i.test(file.dataUrl)).slice(0, 3);
+    const suppliedImages = attachments.filter(file => file && file.kind === "image");
+    if (suppliedImages.some(file => typeof file.dataUrl !== "string" || file.dataUrl.length > 6600000)) return json({ error: "One of those images is too large. Please choose a smaller photo." }, 413, allowedOrigin);
+    const imageFiles = suppliedImages.filter(file => /^data:image\/(png|jpeg|jpg|webp|gif);base64,/i.test(file.dataUrl)).slice(0, 3);
     let linkContext = "";
     const urls = [...new Set((messages[messages.length - 1]?.content.match(/https?:\/\/[^\s<>)]+/gi) || []).map(u=>u.replace(/[.,!?;:]+$/,)))].slice(0,2);
     for (const target of urls) { try { linkContext += `\n\nREAD WEB PAGE ${target}:\n${await readPage(target)}`; } catch (e) { linkContext += `\n\nCould not read ${target}: ${String(e.message||e).slice(0,180)}`; } }

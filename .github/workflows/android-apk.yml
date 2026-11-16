@@ -18,15 +18,15 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: "8.9"
-      - name: Build installable debug APK
+      - name: Build installable MiniAI 2.0 APK
         working-directory: android
         run: gradle assembleDebug --no-daemon
       - name: Rename APK
         run: cp android/app/build/outputs/apk/debug/app-debug.apk MiniAI.apk
       - uses: softprops/action-gh-release@v2
         with:
-          tag_name: android-v1.0.${{ github.run_number }}
-          name: MiniAI Android v1.0.${{ github.run_number }}
+          tag_name: miniai-v2.0.${{ github.run_number }}
+          name: MiniAI Android v2.0.${{ github.run_number }}
           files: MiniAI.apk
           make_latest: true
           generate_release_notes: true

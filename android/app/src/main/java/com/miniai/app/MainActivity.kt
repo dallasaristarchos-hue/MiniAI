@@ -1,35 +1,103 @@
 package com.miniai.app
 
+import android.Manifest
 import android.app.Activity
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.graphics.Color
+import android.net.Uri
 import android.os.Bundle
+import android.webkit.PermissionRequest
+import android.webkit.ValueCallback
 import android.webkit.WebChromeClient
+import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
-import android.webkit.WebResourceRequest
-import android.content.Intent
-import android.net.Uri
 
 class MainActivity : Activity() {
     private lateinit var webView: WebView
+    private var filePathCallback: ValueCallback<Array<Uri>>? = null
+    private var pendingPermissionRequest: PermissionRequest? = null
+    private val fileChooserRequest = 4101
+    private val webPermissionRequest = 4102
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        window.statusBarColor = Color.rgb(16, 11, 28)
+        window.navigationBarColor = Color.rgb(16, 11, 28)
         webView = WebView(this)
         webView.settings.javaScriptEnabled = true
         webView.settings.domStorageEnabled = true
         webView.settings.allowFileAccess = false
-        webView.settings.allowContentAccess = false
+        webView.settings.allowContentAccess = true
         webView.webViewClient = object : WebViewClient() {
             override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
                 val uri = request.url
                 return if (uri.scheme == "https" && uri.host == "miniai-ai.pages.dev") false else {
-                    startActivity(Intent(Intent.ACTION_VIEW, uri)); true
+                    try { startActivity(Intent(Intent.ACTION_VIEW, uri)) } catch (_: Exception) {}
+                    true
                 }
             }
         }
-        webView.webChromeClient = WebChromeClient()
+        webView.webChromeClient = object : WebChromeClient() {
+            override fun onShowFileChooser(view: WebView, callback: ValueCallback<Array<Uri>>, params: FileChooserParams): Boolean {
+                filePathCallback?.onReceiveValue(null)
+                filePathCallback = callback
+                return try {
+                    startActivityForResult(params.createIntent(), fileChooserRequest)
+                    true
+                } catch (_: Exception) {
+                    filePathCallback = null
+                    false
+                }
+            }
+
+            override fun onPermissionRequest(request: PermissionRequest) {
+                runOnUiThread {
+                    val supported = request.resources.filter { it == PermissionRequest.RESOURCE_AUDIO_CAPTURE || it == PermissionRequest.RESOURCE_VIDEO_CAPTURE }.toTypedArray()
+                    if (supported.isEmpty() || supported.size != request.resources.size) { request.deny(); return@runOnUiThread }
+                    val needed = mutableListOf<String>()
+                    if (supported.contains(PermissionRequest.RESOURCE_AUDIO_CAPTURE)) needed.add(Manifest.permission.RECORD_AUDIO)
+                    if (supported.contains(PermissionRequest.RESOURCE_VIDEO_CAPTURE)) needed.add(Manifest.permission.CAMERA)
+                    val missing = needed.filter { checkSelfPermission(it) != PackageManager.PERMISSION_GRANTED }
+                    if (missing.isEmpty()) request.grant(supported)
+                    else { pendingPermissionRequest = request; requestPermissions(missing.toTypedArray(), webPermissionRequest) }
+                }
+            }
+        }
         setContentView(webView)
         if (savedInstanceState == null) webView.loadUrl("https://miniai-ai.pages.dev/?source=android") else webView.restoreState(savedInstanceState)
     }
+
+    @Deprecated("Legacy file chooser callback required by WebView")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        if (requestCode == fileChooserRequest) {
+            val callback = filePathCallback
+            filePathCallback = null
+            callback?.onReceiveValue(if (resultCode == RESULT_OK) WebChromeClient.FileChooserParams.parseResult(resultCode, data) else null)
+            return
+        }
+        super.onActivityResult(requestCode, resultCode, data)
+    }
+
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == webPermissionRequest) {
+            val request = pendingPermissionRequest
+            pendingPermissionRequest = null
+            if (request != null) {
+                if (grantResults.isNotEmpty() && grantResults.all { it == PackageManager.PERMISSION_GRANTED }) request.grant(request.resources.filter { it == PermissionRequest.RESOURCE_AUDIO_CAPTURE || it == PermissionRequest.RESOURCE_VIDEO_CAPTURE }.toTypedArray())
+                else request.deny()
+            }
+        }
+    }
+
     override fun onSaveInstanceState(outState: Bundle) { super.onSaveInstanceState(outState); webView.saveState(outState) }
+    @Deprecated("Legacy back navigation callback")
     override fun onBackPressed() { if (webView.canGoBack()) webView.goBack() else super.onBackPressed() }
+
+    override fun onDestroy() {
+        if (::webView.isInitialized) { webView.stopLoading(); webView.destroy() }
+        super.onDestroy()
+    }
 }
