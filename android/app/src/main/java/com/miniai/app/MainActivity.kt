@@ -24,6 +24,7 @@ class MainActivity : Activity() {
     private val fileChooserRequest = 4101
     private val webPermissionRequest = 4102
     private var systemBackCallback: OnBackInvokedCallback? = null
+    private var pendingAssistantOpen = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -34,12 +35,22 @@ class MainActivity : Activity() {
         webView.settings.domStorageEnabled = true
         webView.settings.allowFileAccess = false
         webView.settings.allowContentAccess = true
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) webView.settings.safeBrowsingEnabled = true
+        pendingAssistantOpen = intent.getBooleanExtra("opened_as_assistant", false)
         webView.webViewClient = object : WebViewClient() {
             override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
                 val uri = request.url
-                return if (uri.scheme == "https" && uri.host == "miniai-ai.pages.dev") false else {
+                if (uri.scheme == "https" && uri.host == "miniai-ai.pages.dev") return false
+                if (uri.scheme == "https" || uri.scheme == "mailto") {
                     try { startActivity(Intent(Intent.ACTION_VIEW, uri)) } catch (_: Exception) {}
-                    true
+                }
+                return true
+            }
+            override fun onPageFinished(view: WebView, url: String) {
+                super.onPageFinished(view, url)
+                if (pendingAssistantOpen) {
+                    pendingAssistantOpen = false
+                    view.evaluateJavascript("window.openMiniAIAssistant && window.openMiniAIAssistant()", null)
                 }
             }
         }
@@ -75,6 +86,19 @@ class MainActivity : Activity() {
             onBackInvokedDispatcher.registerOnBackInvokedCallback(OnBackInvokedDispatcher.PRIORITY_DEFAULT, systemBackCallback!!)
         }
         if (savedInstanceState == null) webView.loadUrl("https://miniai-ai.pages.dev/?source=android") else webView.restoreState(savedInstanceState)
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        if (intent.getBooleanExtra("opened_as_assistant", false)) {
+            pendingAssistantOpen = true
+            if (::webView.isInitialized) webView.post {
+                webView.evaluateJavascript("window.openMiniAIAssistant && window.openMiniAIAssistant()") { result ->
+                    if (result != "true") pendingAssistantOpen = true
+                }
+            }
+        }
     }
 
     @Deprecated("Legacy file chooser callback required by WebView")

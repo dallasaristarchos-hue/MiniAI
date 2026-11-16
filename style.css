@@ -320,3 +320,6 @@ button:focus-visible,a:focus-visible,[role=button]:focus-visible{outline:2px sol
   .composer-area{flex-shrink:0!important;position:relative!important;padding-bottom:max(10px,env(safe-area-inset-bottom))!important;}
   #messageInput{max-height: min(150px,22vh);overflow-y:auto;overscroll-behavior:contain;}
 }
+
+/* Store-readiness controls */
+.message-actions [data-action="report-message"]{color:#c7b7d8;border-color:transparent;background:transparent;font-size:11px;padding:4px 8px}.message-actions [data-action="report-message"]:hover{color:#f0b5d8;background:#ed8bb31a}.danger-action{margin-top:10px;border-color:#d86d8b55;color:#ffb2c4}.danger-action:hover{background:#d86d8b18;border-color:#e58ba3}
