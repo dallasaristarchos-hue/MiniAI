@@ -12,20 +12,20 @@ https://miniai-ai.pages.dev
 - Dedicated coding mode and general programming help
 - Greek-school-aware tutoring and step-by-step explanations
 - Optional live web lookup and lightweight calculator, weather, currency, dictionary, books, and reference tools
-- Image generation and AI photo editing
-- Browser-based video trimming/export and image motion effects
+- Higher-detail image generation with FLUX.2 Klein 4B and AI photo editing
+- Typo-tolerant question understanding and spelling-corrected web searches
 - Voice dictation and browser text-to-speech where supported
 - Accounts, one-time ratings, response reporting, and account deletion
 - Privacy and account-deletion information at `/privacy.html` and `/delete-account.html`
 - Installable PWA with an offline app shell
 
-Some browser features depend on the device and browser. Video editing is performed locally in the browser; it is not AI text-to-video generation. Live lookup and AI features depend on upstream services and their current availability and usage limits.
+Some browser features depend on the device and browser. Live lookup and AI features depend on upstream services and their current availability and usage limits.
 
 ## Architecture
 
 - `index.html` — application structure and entry point
 - `style.css` — responsive visual system and animations
-- `script.js` — chat UI, local history, settings, voice, and creative tools
+- `script.js` — chat UI, local history, settings, voice, and image tools
 - `sw.js` — PWA caching and offline fallback
 - `worker.js` — Cloudflare Worker API, AI calls, validation, authentication, ratings, and reports
 - `migrations/` — D1 database schema migrations

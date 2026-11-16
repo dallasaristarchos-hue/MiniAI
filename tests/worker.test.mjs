@@ -101,25 +101,62 @@ test("chat stream keeps CORS and browser security headers", async () => {
   assert.match(await response.text(), /Hello from MiniAI/);
 });
 
-test("FLUX image generation sends only supported model inputs", async () => {
+test("FLUX.2 Klein image generation sends supported multipart inputs", async () => {
   const { env } = mockEnv();
   const calls = [];
   env.AI.run = async (model, input) => {
     calls.push({ model, input });
     if (calls.length === 1) return { response: "polished purple sunset prompt" };
-    return new Uint8Array([255, 216, 255, 217]);
+    assert.equal(model, "@cf/black-forest-labs/flux-2-klein-4b");
+    assert.ok(input.multipart?.body);
+    assert.match(input.multipart.contentType, /^multipart\/form-data; boundary=/);
+    const multipartResponse = new Response(input.multipart.body, { headers: { "content-type": input.multipart.contentType } });
+    const form = await multipartResponse.formData();
+    assert.equal(form.get("prompt"), "polished purple sunset prompt");
+    assert.equal(form.get("width"), "1280");
+    assert.equal(form.get("height"), "720");
+    return { image: "/9j/4AAQSkZJRgABAQAAAQABAAD/2Q==" };
   };
   const request = new Request("https://miniai-api.dallasaristarchos.workers.dev/api/image", {
     method: "POST",
     headers: { Origin: origin, "Content-Type": "application/json" },
-    body: JSON.stringify({ mode: "generate", prompt: "A purple sunset over the sea" })
+    body: JSON.stringify({ mode: "generate", prompt: "A purple sunset over the sea", width: 1280, height: 720 })
   });
   const response = await worker.fetch(request, env);
   assert.equal(response.status, 200);
   const data = await response.json();
   assert.ok(data.image.startsWith("data:image/jpeg;base64,"));
-  const fluxCall = calls.find(call => call.model === "@cf/black-forest-labs/flux-1-schnell");
-  assert.ok(fluxCall);
-  assert.deepEqual(Object.keys(fluxCall.input).sort(), ["prompt", "steps"]);
-  assert.equal(fluxCall.input.steps, 8);
+  assert.equal(calls.length, 2);
+});
+
+ test("misspelled names are corrected before web search", async () => {
+  const { env } = mockEnv();
+  const originalFetch = globalThis.fetch;
+  let searchedUrl = "";
+  const calls = [];
+  globalThis.fetch = async (input) => {
+    searchedUrl = String(input);
+    return new Response('<li class="b_algo"><h2><a href="https://example.com/epstein">Jeffrey Epstein</a></h2><div class="b_caption"><p>Biography and background.</p></div></li>', { status: 200, headers: { "content-type": "text/html" } });
+  };
+  env.AI.run = async (model, input) => {
+    calls.push(input);
+    if (calls.length === 1) return { response: "Who is Jeffrey Epstein?" };
+    return new ReadableStream({ start(controller) { controller.enqueue(new TextEncoder().encode('data: {"response":"Jeffrey Epstein is the intended name."}\\n\\ndata: [DONE]\\n\\n')); controller.close(); } });
+  };
+  try {
+    const request = new Request("https://miniai-api.dallasaristarchos.workers.dev/api/chat", {
+      method: "POST",
+      headers: { Origin: origin, "Content-Type": "application/json" },
+      body: JSON.stringify({ messages: [{ role: "user", content: "Who is Epstin?" }], plugins: { calculator: false, weather: false, currency: false, wikipedia: false, webSearch: true, dictionary: false, books: false, units: false } })
+    });
+    const response = await worker.fetch(request, env);
+    assert.equal(response.status, 200);
+    assert.match(searchedUrl, /Jeffrey%20Epstein/i);
+    assert.doesNotMatch(searchedUrl, /Epstin/i);
+    assert.equal(calls.length, 2);
+    assert.match(calls[1].messages[0].content, /Epstin/);
+    assert.match(await response.text(), /Jeffrey Epstein is the intended name/);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });
