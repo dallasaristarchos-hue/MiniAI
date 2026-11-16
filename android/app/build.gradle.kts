@@ -12,8 +12,8 @@ android {
         applicationId = "com.miniai.app"
         minSdk = 23
         targetSdk = 36
-        versionCode = 12
-        versionName = "3.0"
+        versionCode = 13
+        versionName = "3.1"
     }
     signingConfigs {
         create("release") {
