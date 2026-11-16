@@ -262,7 +262,7 @@ function json(data, status = 200, origin = "") {
       "content-type": "application/json; charset=utf-8",
       "cache-control": "no-store",
       "access-control-allow-origin": origin,
-      "access-control-allow-methods": "GET, POST, OPTIONS",
+      "access-control-allow-methods": "GET, POST, DELETE, OPTIONS",
       "access-control-allow-headers": "Content-Type, Authorization",
       "vary": "Origin"
     }
@@ -337,7 +337,7 @@ export default {
         status: 204,
         headers: {
           "access-control-allow-origin": allowedOrigin,
-          "access-control-allow-methods": "GET, POST, OPTIONS",
+          "access-control-allow-methods": "GET, POST, DELETE, OPTIONS",
           "access-control-allow-headers": "Content-Type, Authorization",
           "access-control-max-age": "86400",
           "vary": "Origin"
@@ -712,7 +712,7 @@ export default {
         stream: true
       });
 
-      if (result instanceof ReadableStream) return new Response(result,{status:200,headers:{"content-type":"text/event-stream; charset=utf-8","cache-control":"no-cache, no-transform","access-control-allow-origin":allowedOrigin,"access-control-allow-methods":"GET, POST, OPTIONS","access-control-allow-headers":"Content-Type","vary":"Origin"}});
+      if (result instanceof ReadableStream) return new Response(result,{status:200,headers:{"content-type":"text/event-stream; charset=utf-8","cache-control":"no-cache, no-transform","access-control-allow-origin":allowedOrigin,"access-control-allow-methods":"GET, POST, DELETE, OPTIONS","access-control-allow-headers":"Content-Type","vary":"Origin"}});
 
       const answer = typeof result?.response === "string"
         ? result.response
@@ -725,7 +725,7 @@ export default {
       if (!answer.trim()) {
         return json({ error: "MiniAI did not receive a usable answer. Please try again." }, 502, allowedOrigin);
       }
-      return new Response(`data: ${JSON.stringify({response:answer})}\n\ndata: [DONE]\n\n`,{status:200,headers:{"content-type":"text/event-stream; charset=utf-8","cache-control":"no-cache","access-control-allow-origin":allowedOrigin,"access-control-allow-methods":"GET, POST, OPTIONS","access-control-allow-headers":"Content-Type","vary":"Origin"}});
+      return new Response(`data: ${JSON.stringify({response:answer})}\n\ndata: [DONE]\n\n`,{status:200,headers:{"content-type":"text/event-stream; charset=utf-8","cache-control":"no-cache","access-control-allow-origin":allowedOrigin,"access-control-allow-methods":"GET, POST, DELETE, OPTIONS","access-control-allow-headers":"Content-Type","vary":"Origin"}});
     } catch (error) {
       return json({ error: "MiniAI's free AI service is temporarily busy. Please try again shortly." }, 502, allowedOrigin);
     }
