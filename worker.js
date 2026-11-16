@@ -235,32 +235,95 @@ function safePublicUrl(value) {
   try {
     const u = new URL(value);
     if (!['http:','https:'].includes(u.protocol) || u.username || u.password) return null;
+    if (u.port && !['80','443'].includes(u.port)) return null;
     const h = u.hostname.toLowerCase();
-    if (h === 'localhost' || h.endsWith('.localhost') || h.endsWith('.local') || h === '::1' || /^127\./.test(h) || /^10\./.test(h) || /^192\.168\./.test(h) || /^169\.254\./.test(h) || /^172\.(1[6-9]|2\d|3[01])\./.test(h)) return null;
+    if (h.startsWith('[') || h.includes(':')) return null;
+    if (h === 'localhost' || h.endsWith('.localhost') || h.endsWith('.local') || h.endsWith('.internal') || h.endsWith('.intranet') || h.endsWith('.home.arpa') || h.endsWith('.test') || h.endsWith('.invalid') || h.endsWith('.example') || h === 'metadata.google.internal' || h === 'metadata' || h === '0.0.0.0' || /^127\./.test(h) || /^10\./.test(h) || /^192\.168\./.test(h) || /^169\.254\./.test(h) || /^172\.(1[6-9]|2\d|3[01])\./.test(h)) return null;
+    const ip = h.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+    if (ip) {
+      const [a,b,c,d] = ip.slice(1).map(Number);
+      if ([a,b,c,d].some(part => part > 255) || a === 0 || a >= 224 || (a === 100 && b >= 64 && b <= 127) || (a === 192 && b === 0 && (c === 0 || c === 2)) || (a === 198 && (b === 18 || b === 19 || (b === 51 && c === 100))) || (a === 203 && b === 0 && c === 113) || a === 255) return null;
+    }
     return u;
   } catch { return null; }
 }
 async function readPage(url) {
   const safe = safePublicUrl(url);
   if (!safe) throw new Error('That link is not a valid public HTTP or HTTPS address.');
-  const response = await fetch(safe.href, {redirect:'manual',headers:{'User-Agent':'Mozilla/5.0 MiniAI Link Reader','Accept':'text/html,text/plain,application/xhtml+xml'}});
+  const response = await fetch(safe.href, {redirect:'manual',signal:AbortSignal.timeout(8000),headers:{'User-Agent':'Mozilla/5.0 MiniAI Link Reader','Accept':'text/html,text/plain,application/xhtml+xml'}});
   if (response.status >= 300 && response.status < 400) {
     const location = response.headers.get('Location');
     const next = location ? safePublicUrl(new URL(location,safe).href) : null;
     if (!next) throw new Error('The page redirected to a blocked or unsupported address.');
-    const second = await fetch(next.href,{redirect:'manual',headers:{'User-Agent':'Mozilla/5.0 MiniAI Link Reader','Accept':'text/html,text/plain,application/xhtml+xml'}});
+    const second = await fetch(next.href,{redirect:'manual',signal:AbortSignal.timeout(8000),headers:{'User-Agent':'Mozilla/5.0 MiniAI Link Reader','Accept':'text/html,text/plain,application/xhtml+xml'}});
     if (!second.ok) throw new Error('Could not open that page ('+second.status+').');
-    return extractPageText(await second.text(),second.headers.get('content-type')||'');
+    const secondType = second.headers.get('content-type') || '';
+    if (!/text\/html|text\/plain|application\/xhtml\+xml/i.test(secondType)) throw new Error('That link does not return a readable web page.');
+    return extractPageText(await readLimitedResponseText(second),secondType);
   }
   if (!response.ok) throw new Error('Could not open that page ('+response.status+').');
   const type = response.headers.get('content-type') || '';
   if (!/text\/html|text\/plain|application\/xhtml\+xml/i.test(type)) throw new Error('That link does not return a readable web page.');
-  return extractPageText(await response.text(),type);
+  return extractPageText(await readLimitedResponseText(response),type);
 }
 function extractPageText(raw,type) {
   let text = String(raw).slice(0,350000);
   if (/html|xhtml/i.test(type)) text = text.replace(/<script\b[\s\S]*?<\/script>/gi,' ').replace(/<style\b[\s\S]*?<\/style>/gi,' ').replace(/<nav\b[\s\S]*?<\/nav>/gi,' ').replace(/<footer\b[\s\S]*?<\/footer>/gi,' ').replace(/<[^>]+>/g,' ');
   return text.replace(/&nbsp;/g,' ').replace(/&amp;/g,'&').replace(/&quot;/g,'"').replace(/&#39;/g,"'").replace(/\s+/g,' ').trim().slice(0,14000);
+}
+
+async function readJsonBody(request, maxBytes) {
+  const declaredLength = Number(request.headers.get("Content-Length") || 0);
+  if (declaredLength > maxBytes) throw new RangeError("Request body too large.");
+  if (!request.body) throw new Error("Missing request body.");
+  const reader = request.body.getReader();
+  const decoder = new TextDecoder();
+  let text = "";
+  let total = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      total += value.byteLength;
+      if (total > maxBytes) {
+        await reader.cancel();
+        throw new RangeError("Request body too large.");
+      }
+      text += decoder.decode(value, { stream: true });
+    }
+    text += decoder.decode();
+  } finally {
+    reader.releaseLock();
+  }
+  const body = JSON.parse(text);
+  if (!body || typeof body !== "object" || Array.isArray(body)) throw new Error("A JSON object is required.");
+  return body;
+}
+
+async function readLimitedResponseText(response, maxBytes = 1000000) {
+  const declaredLength = Number(response.headers.get("Content-Length") || 0);
+  if (declaredLength > maxBytes) throw new Error("That page is too large to read.");
+  if (!response.body) return "";
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let text = "";
+  let total = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      total += value.byteLength;
+      if (total > maxBytes) {
+        await reader.cancel();
+        throw new Error("That page is too large to read.");
+      }
+      text += decoder.decode(value, { stream: true });
+    }
+    text += decoder.decode();
+  } finally {
+    reader.releaseLock();
+  }
+  return text;
 }
 
 function json(data, status = 200, origin = "") {
@@ -269,6 +332,9 @@ function json(data, status = 200, origin = "") {
     headers: {
       "content-type": "application/json; charset=utf-8",
       "cache-control": "no-store",
+      "x-content-type-options": "nosniff",
+      "referrer-policy": "no-referrer",
+      "x-frame-options": "DENY",
       "access-control-allow-origin": origin,
       "access-control-allow-methods": "GET, POST, DELETE, OPTIONS",
       "access-control-allow-headers": "Content-Type, Authorization",
@@ -365,7 +431,7 @@ export default {
           const length = Number(request.headers.get("Content-Length") || 0);
           if (length > 2048) return json({ error: "Account details are too long." }, 413, allowedOrigin);
           authStage = "parse-body";
-          let body; try { body = await request.json(); } catch { return json({ error: "Please enter valid account details." }, 400, allowedOrigin); }
+          let body; try { body = await readJsonBody(request, 2048); } catch (error) { return json({ error: error instanceof RangeError ? "Account details are too long." : "Please enter valid account details." }, error instanceof RangeError ? 413 : 400, allowedOrigin); }
           const username = typeof body.username === "string" ? body.username.trim() : "";
           const password = typeof body.password === "string" ? body.password : "";
           if (!/^[A-Za-z0-9_.-]{3,20}$/.test(username)) return json({ error: "Account name must be 3–20 characters: letters, numbers, dots, _ or - ." }, 400, allowedOrigin);
@@ -442,7 +508,7 @@ export default {
       if (await authRateLimited(request, "content-report")) return json({ error: "Too many reports. Please wait a few minutes." }, 429, allowedOrigin);
       const size = Number(request.headers.get("Content-Length") || 0);
       if (size > 12000) return json({ error: "Report is too large." }, 413, allowedOrigin);
-      let body; try { body = await request.json(); } catch { return json({ error: "Please submit a valid report." }, 400, allowedOrigin); }
+      let body; try { body = await readJsonBody(request, 12000); } catch (error) { return json({ error: error instanceof RangeError ? "Report is too large." : "Please submit a valid report." }, error instanceof RangeError ? 413 : 400, allowedOrigin); }
       const allowedCategories = new Set(["safety", "harassment", "hate", "sexual content", "misinformation", "other"]);
       const category = typeof body.category === "string" ? body.category.trim().toLowerCase() : "";
       const message = typeof body.message === "string" ? body.message.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, " ").trim().slice(0, 5000) : "";
@@ -486,7 +552,7 @@ export default {
         if (now - previous.start >= WINDOW_MS) { previous.start = now; previous.count = 0; }
         previous.count += 1; hits.set(key, previous);
         if (previous.count > 8) return json({ error: "Too many rating attempts. Please try again in a minute." }, 429, allowedOrigin);
-        let body; try { body = await request.json(); } catch { return json({ error: "Please choose a valid rating." }, 400, allowedOrigin); }
+        let body; try { body = await readJsonBody(request, 2048); } catch (error) { return json({ error: error instanceof RangeError ? "Rating request is too large." : "Please choose a valid rating." }, error instanceof RangeError ? 413 : 400, allowedOrigin); }
         const rating = Number(body.rating);
         const feedback = typeof body.feedback === "string" ? body.feedback.replace(/[\u0000-\u001F\u007F]/g, " ").trim().slice(0, 500) : "";
         if (!Number.isInteger(rating) || rating < 1 || rating > 5) return json({ error: "Choose a rating from 1 to 5 stars." }, 400, allowedOrigin);
@@ -530,7 +596,7 @@ export default {
       previous.count += 1; hits.set(key, previous);
       if (previous.count > 4) return json({ error: "Image limit reached. Please wait a minute and try again." }, 429, allowedOrigin);
       let body;
-      try { body = await request.json(); } catch { return json({ error: "Please provide a valid image request." }, 400, allowedOrigin); }
+      try { body = await readJsonBody(request, 8 * 1024 * 1024); } catch (error) { return json({ error: error instanceof RangeError ? "Image request is too large. Choose a photo under 5 MB." : "Please provide a valid image request." }, error instanceof RangeError ? 413 : 400, allowedOrigin); }
       const prompt = typeof body.prompt === "string" ? body.prompt.trim().slice(0, 1800) : "";
       const mode = body.mode === "edit" ? "edit" : "generate";
       if (!prompt) return json({ error: mode === "edit" ? "Describe the changes you want to make to the photo." : "Describe the image you want to create." }, 400, allowedOrigin);
@@ -617,9 +683,9 @@ export default {
     if (requestBytes > MAX_REQUEST_BODY_BYTES) return json({ error: "This request is too large. Please reduce the attachments and try again." }, 413, allowedOrigin);
     let body;
     try {
-      body = await request.json();
-    } catch {
-      return json({ error: "Please send a valid message." }, 400, allowedOrigin);
+      body = await readJsonBody(request, MAX_REQUEST_BODY_BYTES);
+    } catch (error) {
+      return json({ error: error instanceof RangeError ? "This request is too large. Please reduce the attachments and try again." : "Please send a valid message." }, error instanceof RangeError ? 413 : 400, allowedOrigin);
     }
 
     if (!Array.isArray(body.messages) || body.messages.length === 0) {
