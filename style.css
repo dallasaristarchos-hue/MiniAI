@@ -105,3 +105,18 @@ textarea{font-size:14px}.send-button{border-radius:12px;box-shadow:0 4px 16px #b
   100%{opacity:0;transform:translate3d(calc(var(--drift)*-.6),112vh,0) rotate(360deg)}
 }
 @media(max-width:760px){.sidebar{z-index:1002!important}.sidebar-scrim{z-index:1001!important}}
+
+
+/* Attachments and progressive response polish */
+.attachment-list{max-width:830px;margin:0 auto 8px;display:flex;flex-wrap:wrap;gap:7px}
+.attachment-chip{display:flex;align-items:center;gap:9px;padding:6px 9px 6px 11px;border:1px solid #b88aff35;border-radius:10px;background:#251b35;color:#e9dafa;font-size:11px;max-width:100%}
+.attachment-chip span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:230px}
+.attachment-chip button{border:0;background:transparent;color:#d6b7ff;font-size:17px;cursor:pointer;padding:0 2px}
+.attach-button{width:36px;height:36px;flex:0 0 36px;border:1px solid #b88aff40;border-radius:11px;background:#a77aff18;color:#d9c2ff;font-size:22px;cursor:pointer}
+.attach-button:hover{background:#a77aff30;border-color:#c9a9ff}
+.message.assistant .bubble{transition:background .15s ease}
+@media(max-width:760px){.attachment-list{padding:0 2px}.attachment-chip span{max-width:190px}.attach-button{width:34px;height:34px;flex-basis:34px}}
+
+
+/* Integrations panel */
+.plugins-button{width:100%;display:flex;align-items:center;gap:10px;margin-top:12px;padding:11px 10px;border:1px solid #b88aff24;border-radius:11px;background:#a77aff0b;color:#d8c7ed;text-align:left;cursor:pointer}.plugins-button>span:first-child{font-size:19px;color:#c9a9ff}.plugins-button strong,.plugins-button small{display:block}.plugins-button strong{font-size:11px}.plugins-button small{font-size:9px;color:#9e90ad;margin-top:3px}.plugins-button b{margin-left:auto;color:#9e90ad;font-size:18px}.plugin-modal{position:fixed;z-index:1400;inset:0;display:grid;place-items:center;padding:18px;background:#080510c9;backdrop-filter:blur(10px)}.plugin-modal[hidden]{display:none}.plugin-card{position:relative;width:min(100%,430px);padding:26px;border:1px solid #b88aff40;border-radius:20px;background:#191323;box-shadow:0 24px 80px #0009}.plugin-card h2{margin:6px 0 8px;font:600 27px 'Space Grotesk',sans-serif}.plugin-intro,.plugin-note{color:#b6a8c5;font-size:12px;line-height:1.7}.plugin-close{position:absolute;right:15px;top:13px;border:0;background:transparent;color:#c8b6d9;font-size:25px;cursor:pointer}.plugin-entry{display:flex;gap:13px;align-items:center;margin:20px 0;padding:14px;border:1px solid #ffffff14;border-radius:13px;background:#ffffff06}.plugin-icon{width:40px;height:40px;display:grid;place-items:center;border-radius:12px;background:linear-gradient(145deg,#d0adff,#9c6be5);color:#fff;font-weight:700;font-size:20px}.plugin-entry strong,.plugin-entry small,.plugin-state{display:block}.plugin-entry strong{font-size:13px}.plugin-entry small{margin-top:4px;color:#a99bb9;font-size:10px;line-height:1.5}.plugin-state{margin-top:6px;color:#e8bf8c;font-size:10px}.plugin-note code{color:#e3caff}.plugin-done{width:100%;margin-top:12px;padding:11px;border:0;border-radius:11px;background:linear-gradient(100deg,#a77aff,#d58bd0);color:white;font-weight:700;cursor:pointer}
