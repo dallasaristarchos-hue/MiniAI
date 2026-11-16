@@ -13,3 +13,10 @@ The rating feature stores a random browser-generated ID, the selected star value
 
 ## Release checks
 JavaScript syntax, required rating UI elements, and Worker route wiring are checked before deployment. The Android APK must still pass its GitHub Actions build before its download can be marked ready.
+
+
+## Accounts and one-time ratings
+- Users can create a named MiniAI account or sign in with an account name and password; no email address is required.
+- Passwords are stored as salted PBKDF2-SHA-256 hashes; the browser stores a revocable 30-day session token.
+- Each authenticated account can submit exactly one rating. The server and D1 unique index reject duplicates; ratings cannot be edited or resubmitted.
+- Existing anonymous ratings remain in the historical community average; new ratings are account-bound.

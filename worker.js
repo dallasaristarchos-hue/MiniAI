@@ -263,12 +263,59 @@ function json(data, status = 200, origin = "") {
       "cache-control": "no-store",
       "access-control-allow-origin": origin,
       "access-control-allow-methods": "GET, POST, OPTIONS",
-      "access-control-allow-headers": "Content-Type",
+      "access-control-allow-headers": "Content-Type, Authorization",
       "vary": "Origin"
     }
   });
 }
 
+const AUTH_SESSION_DAYS = 30;
+const AUTH_PBKDF2_ITERATIONS = 150000;
+function toBase64Url(bytes) {
+  let binary = "";
+  for (const byte of new Uint8Array(bytes)) binary += String.fromCharCode(byte);
+  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+}
+function fromBase64Url(value) {
+  const normalized = value.replace(/-/g, "+").replace(/_/g, "/");
+  const binary = atob(normalized + "=".repeat((4 - normalized.length % 4) % 4));
+  return Uint8Array.from(binary, char => char.charCodeAt(0));
+}
+async function sha256Base64Url(value) {
+  return toBase64Url(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value)));
+}
+async function passwordHash(password, salt) {
+  const material = await crypto.subtle.importKey("raw", new TextEncoder().encode(password), "PBKDF2", false, ["deriveBits"]);
+  const bits = await crypto.subtle.deriveBits({ name: "PBKDF2", hash: "SHA-256", salt: fromBase64Url(salt), iterations: AUTH_PBKDF2_ITERATIONS }, material, 256);
+  return toBase64Url(bits);
+}
+async function createSession(env, accountId) {
+  const bytes = crypto.getRandomValues(new Uint8Array(32));
+  const token = toBase64Url(bytes);
+  const tokenHash = await sha256Base64Url(token);
+  const now = Date.now();
+  const expiresAt = now + AUTH_SESSION_DAYS * 86400000;
+  await env.DB.prepare("INSERT INTO sessions (token_hash, account_id, created_at, expires_at) VALUES (?, ?, ?, ?)").bind(tokenHash, accountId, now, expiresAt).run();
+  return { token, expiresAt };
+}
+async function authenticatedAccount(request, env) {
+  const authorization = request.headers.get("Authorization") || "";
+  const match = authorization.match(/^Bearer ([A-Za-z0-9_-]{30,80})$/);
+  if (!match) return null;
+  const tokenHash = await sha256Base64Url(match[1]);
+  const row = await env.DB.prepare("SELECT a.id, a.username, a.display_name FROM sessions s JOIN accounts a ON a.id = s.account_id WHERE s.token_hash = ? AND s.expires_at > ? LIMIT 1").bind(tokenHash, Date.now()).first();
+  return row || null;
+}
+async function authRateLimited(request, prefix) {
+  const ip = request.headers.get("CF-Connecting-IP") || "unknown";
+  const key = prefix + ":" + ip;
+  const now = Date.now();
+  const previous = hits.get(key) || { start: now, count: 0 };
+  if (now - previous.start > 300000) { previous.start = now; previous.count = 0; }
+  previous.count += 1;
+  hits.set(key, previous);
+  return previous.count > 12;
+}
 export default {
   async fetch(request, env) {
     const origin = request.headers.get("Origin") || "";
@@ -286,25 +333,90 @@ export default {
         headers: {
           "access-control-allow-origin": allowedOrigin,
           "access-control-allow-methods": "GET, POST, OPTIONS",
-          "access-control-allow-headers": "Content-Type",
+          "access-control-allow-headers": "Content-Type, Authorization",
           "access-control-max-age": "86400",
           "vary": "Origin"
         }
       });
     }
 
-    if (url.pathname === "/api/ratings") {
+    if (url.pathname.startsWith("/api/auth/")) {
+      if (!allowedOrigin) return json({ error: "Origin not allowed" }, 403, "");
+      if (!env.DB) return json({ error: "Accounts are temporarily unavailable." }, 503, allowedOrigin);
+      try {
+        if (url.pathname === "/api/auth/register" || url.pathname === "/api/auth/login") {
+          if (request.method !== "POST") return json({ error: "Method not allowed" }, 405, allowedOrigin);
+          if (await authRateLimited(request, "auth")) return json({ error: "Too many account attempts. Please wait five minutes." }, 429, allowedOrigin);
+          const length = Number(request.headers.get("Content-Length") || 0);
+          if (length > 2048) return json({ error: "Account details are too long." }, 413, allowedOrigin);
+          let body; try { body = await request.json(); } catch { return json({ error: "Please enter valid account details." }, 400, allowedOrigin); }
+          const username = typeof body.username === "string" ? body.username.trim() : "";
+          const password = typeof body.password === "string" ? body.password : "";
+          if (!/^[A-Za-z0-9_.-]{3,20}$/.test(username)) return json({ error: "Account name must be 3–20 characters: letters, numbers, dots, _ or - ." }, 400, allowedOrigin);
+          if (password.length < 8 || password.length > 128) return json({ error: "Password must be between 8 and 128 characters." }, 400, allowedOrigin);
+          const normalized = username.toLowerCase();
+          let account;
+          if (url.pathname === "/api/auth/register") {
+            const exists = await env.DB.prepare("SELECT id FROM accounts WHERE username = ? COLLATE NOCASE LIMIT 1").bind(normalized).first();
+            if (exists) return json({ error: "That account name is already taken. Choose another one." }, 409, allowedOrigin);
+            const salt = toBase64Url(crypto.getRandomValues(new Uint8Array(16)));
+            const hash = await passwordHash(password, salt);
+            const id = crypto.randomUUID();
+            const now = Date.now();
+            try {
+              await env.DB.prepare("INSERT INTO accounts (id, username, display_name, password_salt, password_hash, created_at) VALUES (?, ?, ?, ?, ?, ?)").bind(id, normalized, username, salt, hash, now).run();
+            } catch {
+              return json({ error: "That account name is already taken. Choose another one." }, 409, allowedOrigin);
+            }
+            account = { id, username: normalized, display_name: username };
+          } else {
+            account = await env.DB.prepare("SELECT id, username, display_name, password_salt, password_hash FROM accounts WHERE username = ? COLLATE NOCASE LIMIT 1").bind(normalized).first();
+            if (!account) return json({ error: "Account name or password is incorrect." }, 401, allowedOrigin);
+            const candidate = await passwordHash(password, account.password_salt);
+            if (candidate !== account.password_hash) return json({ error: "Account name or password is incorrect." }, 401, allowedOrigin);
+          }
+          const session = await createSession(env, account.id);
+          return json({ ok: true, token: session.token, expiresAt: session.expiresAt, account: { id: account.id, username: account.username, displayName: account.display_name } }, 200, allowedOrigin);
+        }
+        if (url.pathname === "/api/auth/me") {
+          if (request.method !== "GET") return json({ error: "Method not allowed" }, 405, allowedOrigin);
+          const account = await authenticatedAccount(request, env);
+          if (!account) return json({ error: "Please sign in again." }, 401, allowedOrigin);
+          return json({ account: { id: account.id, username: account.username, displayName: account.display_name } }, 200, allowedOrigin);
+        }
+        if (url.pathname === "/api/auth/logout") {
+          if (request.method !== "POST") return json({ error: "Method not allowed" }, 405, allowedOrigin);
+          const authorization = request.headers.get("Authorization") || "";
+          const match = authorization.match(/^Bearer ([A-Za-z0-9_-]{30,80})$/);
+          if (match) await env.DB.prepare("DELETE FROM sessions WHERE token_hash = ?").bind(await sha256Base64Url(match[1])).run();
+          return json({ ok: true }, 200, allowedOrigin);
+        }
+        return json({ error: "Not found" }, 404, allowedOrigin);
+      } catch {
+        return json({ error: "Account service is temporarily unavailable. Please try again." }, 500, allowedOrigin);
+      }
+    }
+
+    if (url.pathname === "/api/ratings" || url.pathname === "/api/ratings/me") {
       if (!allowedOrigin) return json({ error: "Origin not allowed" }, 403, "");
       if (!env.DB) return json({ error: "Ratings are temporarily unavailable." }, 503, allowedOrigin);
       try {
-        if (request.method === "GET") {
+        if (request.method === "GET" && url.pathname === "/api/ratings") {
           const summary = await env.DB.prepare("SELECT COUNT(*) AS count, ROUND(AVG(rating), 1) AS average FROM ratings").first();
           const grouped = await env.DB.prepare("SELECT rating, COUNT(*) AS count FROM ratings GROUP BY rating").all();
           const distribution = { "1": 0, "2": 0, "3": 0, "4": 0, "5": 0 };
           for (const row of (grouped?.results || [])) distribution[String(row.rating)] = Number(row.count) || 0;
           return json({ count: Number(summary?.count) || 0, average: summary?.average == null ? null : Number(summary.average), distribution }, 200, allowedOrigin);
         }
+        if (request.method === "GET" && url.pathname === "/api/ratings/me") {
+          const account = await authenticatedAccount(request, env);
+          if (!account) return json({ error: "Sign in to check your rating." }, 401, allowedOrigin);
+          const own = await env.DB.prepare("SELECT rating, feedback, created_at FROM ratings WHERE account_id = ? LIMIT 1").bind(account.id).first();
+          return json({ rated: Boolean(own), rating: own ? Number(own.rating) : null }, 200, allowedOrigin);
+        }
         if (request.method !== "POST") return json({ error: "Method not allowed" }, 405, allowedOrigin);
+        const account = await authenticatedAccount(request, env);
+        if (!account) return json({ error: "Sign in to your MiniAI account before rating." }, 401, allowedOrigin);
         const contentLength = Number(request.headers.get("Content-Length") || 0);
         if (contentLength > 4096) return json({ error: "Feedback is too long." }, 413, allowedOrigin);
         const ip = request.headers.get("CF-Connecting-IP") || "unknown";
@@ -312,16 +424,21 @@ export default {
         const key = "rating:" + ip;
         const previous = hits.get(key) || { start: now, count: 0 };
         if (now - previous.start >= WINDOW_MS) { previous.start = now; previous.count = 0; }
-        previous.count += 1;
-        hits.set(key, previous);
-        if (previous.count > 8) return json({ error: "Too many rating updates. Please try again in a minute." }, 429, allowedOrigin);
-        const body = await request.json();
-        const clientId = typeof body.clientId === "string" ? body.clientId : "";
+        previous.count += 1; hits.set(key, previous);
+        if (previous.count > 8) return json({ error: "Too many rating attempts. Please try again in a minute." }, 429, allowedOrigin);
+        let body; try { body = await request.json(); } catch { return json({ error: "Please choose a valid rating." }, 400, allowedOrigin); }
         const rating = Number(body.rating);
         const feedback = typeof body.feedback === "string" ? body.feedback.replace(/[\u0000-\u001F\u007F]/g, " ").trim().slice(0, 500) : "";
-        if (!/^[a-zA-Z0-9_-]{16,80}$/.test(clientId)) return json({ error: "Please refresh the page and try again." }, 400, allowedOrigin);
         if (!Number.isInteger(rating) || rating < 1 || rating > 5) return json({ error: "Choose a rating from 1 to 5 stars." }, 400, allowedOrigin);
-        await env.DB.prepare("INSERT INTO ratings (client_id, rating, feedback, created_at) VALUES (?, ?, ?, ?) ON CONFLICT(client_id) DO UPDATE SET rating = excluded.rating, feedback = excluded.feedback, created_at = excluded.created_at").bind(clientId, rating, feedback, now).run();
+        const existing = await env.DB.prepare("SELECT account_id FROM ratings WHERE account_id = ? LIMIT 1").bind(account.id).first();
+        if (existing) return json({ error: "This account has already rated MiniAI. Each account can rate only once." }, 409, allowedOrigin);
+        try {
+          await env.DB.prepare("INSERT INTO ratings (client_id, account_id, rating, feedback, created_at) VALUES (?, ?, ?, ?, ?)").bind("account-" + account.id, account.id, rating, feedback, now).run();
+        } catch {
+          const duplicate = await env.DB.prepare("SELECT account_id FROM ratings WHERE account_id = ? LIMIT 1").bind(account.id).first();
+          if (duplicate) return json({ error: "This account has already rated MiniAI. Each account can rate only once." }, 409, allowedOrigin);
+          throw new Error("Rating could not be stored");
+        }
         const summary = await env.DB.prepare("SELECT COUNT(*) AS count, ROUND(AVG(rating), 1) AS average FROM ratings").first();
         return json({ ok: true, count: Number(summary?.count) || 0, average: summary?.average == null ? null : Number(summary.average) }, 200, allowedOrigin);
       } catch (error) {
