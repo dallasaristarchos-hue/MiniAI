@@ -7,6 +7,9 @@ import android.content.pm.PackageManager
 import android.graphics.Color
 import android.net.Uri
 import android.os.Bundle
+import android.os.Build
+import android.window.OnBackInvokedCallback
+import android.window.OnBackInvokedDispatcher
 import android.webkit.PermissionRequest
 import android.webkit.ValueCallback
 import android.webkit.WebChromeClient
@@ -20,6 +23,7 @@ class MainActivity : Activity() {
     private var pendingPermissionRequest: PermissionRequest? = null
     private val fileChooserRequest = 4101
     private val webPermissionRequest = 4102
+    private var systemBackCallback: OnBackInvokedCallback? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -66,6 +70,10 @@ class MainActivity : Activity() {
             }
         }
         setContentView(webView)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            systemBackCallback = OnBackInvokedCallback { handleSystemBack() }
+            onBackInvokedDispatcher.registerOnBackInvokedCallback(OnBackInvokedDispatcher.PRIORITY_DEFAULT, systemBackCallback!!)
+        }
         if (savedInstanceState == null) webView.loadUrl("https://miniai-ai.pages.dev/?source=android") else webView.restoreState(savedInstanceState)
     }
 
@@ -93,10 +101,24 @@ class MainActivity : Activity() {
     }
 
     override fun onSaveInstanceState(outState: Bundle) { super.onSaveInstanceState(outState); webView.saveState(outState) }
-    @Deprecated("Legacy back navigation callback")
-    override fun onBackPressed() { if (webView.canGoBack()) webView.goBack() else super.onBackPressed() }
+    private fun handleSystemBack() {
+        if (!::webView.isInitialized) { finish(); return }
+        webView.evaluateJavascript("window.handleMiniAIBack ? window.handleMiniAIBack() : false") { result ->
+            if (isFinishing || isDestroyed) return@evaluateJavascript
+            if (result != "true") {
+                if (webView.canGoBack()) webView.goBack() else finish()
+            }
+        }
+    }
+
+    @Deprecated("Legacy back navigation callback for Android versions below 13")
+    override fun onBackPressed() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) handleSystemBack()
+        else super.onBackPressed()
+    }
 
     override fun onDestroy() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) systemBackCallback?.let { onBackInvokedDispatcher.unregisterOnBackInvokedCallback(it) }
         if (::webView.isInitialized) { webView.stopLoading(); webView.destroy() }
         super.onDestroy()
     }
