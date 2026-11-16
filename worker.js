@@ -249,7 +249,7 @@ export default {
               max_tokens: 500,
               stream: false
             });
-            const description = typeof vision?.answer === "string" ? vision.answer : typeof vision?.response === "string" ? vision.response : typeof vision?.caption === "string" ? vision.caption : "";
+            const description = typeof vision?.result?.answer === "string" ? vision.result.answer : typeof vision?.answer === "string" ? vision.answer : typeof vision?.response === "string" ? vision.response : typeof vision?.result?.caption === "string" ? vision.result.caption : typeof vision?.caption === "string" ? vision.caption : "";
             if (!description.trim()) throw new Error("empty vision result");
             imageDescriptions.push(`IMAGE ${index + 1} (${String(file.name || "uploaded image").slice(0, 100)}): ${description.slice(0, 5000)}`);
           } catch {
