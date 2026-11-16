@@ -343,12 +343,15 @@ export default {
     if (url.pathname.startsWith("/api/auth/")) {
       if (!allowedOrigin) return json({ error: "Origin not allowed" }, 403, "");
       if (!env.DB) return json({ error: "Accounts are temporarily unavailable." }, 503, allowedOrigin);
+      let authStage = "route";
       try {
         if (url.pathname === "/api/auth/register" || url.pathname === "/api/auth/login") {
+          authStage = "rate-limit";
           if (request.method !== "POST") return json({ error: "Method not allowed" }, 405, allowedOrigin);
           if (await authRateLimited(request, "auth")) return json({ error: "Too many account attempts. Please wait five minutes." }, 429, allowedOrigin);
           const length = Number(request.headers.get("Content-Length") || 0);
           if (length > 2048) return json({ error: "Account details are too long." }, 413, allowedOrigin);
+          authStage = "parse-body";
           let body; try { body = await request.json(); } catch { return json({ error: "Please enter valid account details." }, 400, allowedOrigin); }
           const username = typeof body.username === "string" ? body.username.trim() : "";
           const password = typeof body.password === "string" ? body.password : "";
@@ -357,29 +360,37 @@ export default {
           const normalized = username.toLowerCase();
           let account;
           if (url.pathname === "/api/auth/register") {
+            authStage = "account-lookup";
             const exists = await env.DB.prepare("SELECT id FROM accounts WHERE username = ? COLLATE NOCASE LIMIT 1").bind(normalized).first();
             if (exists) return json({ error: "That account name is already taken. Choose another one." }, 409, allowedOrigin);
+            authStage = "password-hash";
             const salt = toBase64Url(crypto.getRandomValues(new Uint8Array(16)));
             const hash = await passwordHash(password, salt);
             const id = crypto.randomUUID();
             const now = Date.now();
+            authStage = "account-insert";
             try {
               await env.DB.prepare("INSERT INTO accounts (id, username, display_name, password_salt, password_hash, created_at) VALUES (?, ?, ?, ?, ?, ?)").bind(id, normalized, username, salt, hash, now).run();
-            } catch {
-              return json({ error: "That account name is already taken. Choose another one." }, 409, allowedOrigin);
+            } catch (error) {
+              if (/UNIQUE constraint failed/i.test(String(error?.message || error))) return json({ error: "That account name is already taken. Choose another one." }, 409, allowedOrigin);
+              throw error;
             }
             account = { id, username: normalized, display_name: username };
           } else {
+            authStage = "account-lookup";
             account = await env.DB.prepare("SELECT id, username, display_name, password_salt, password_hash FROM accounts WHERE username = ? COLLATE NOCASE LIMIT 1").bind(normalized).first();
             if (!account) return json({ error: "Account name or password is incorrect." }, 401, allowedOrigin);
+            authStage = "password-check";
             const candidate = await passwordHash(password, account.password_salt);
             if (candidate !== account.password_hash) return json({ error: "Account name or password is incorrect." }, 401, allowedOrigin);
           }
+          authStage = "session-create";
           const session = await createSession(env, account.id);
           return json({ ok: true, token: session.token, expiresAt: session.expiresAt, account: { id: account.id, username: account.username, displayName: account.display_name } }, 200, allowedOrigin);
         }
         if (url.pathname === "/api/auth/me") {
           if (request.method !== "GET") return json({ error: "Method not allowed" }, 405, allowedOrigin);
+          authStage = "session-lookup";
           const account = await authenticatedAccount(request, env);
           if (!account) return json({ error: "Please sign in again." }, 401, allowedOrigin);
           return json({ account: { id: account.id, username: account.username, displayName: account.display_name } }, 200, allowedOrigin);
@@ -388,12 +399,14 @@ export default {
           if (request.method !== "POST") return json({ error: "Method not allowed" }, 405, allowedOrigin);
           const authorization = request.headers.get("Authorization") || "";
           const match = authorization.match(/^Bearer ([A-Za-z0-9_-]{30,80})$/);
+          authStage = "session-delete";
           if (match) await env.DB.prepare("DELETE FROM sessions WHERE token_hash = ?").bind(await sha256Base64Url(match[1])).run();
           return json({ ok: true }, 200, allowedOrigin);
         }
         return json({ error: "Not found" }, 404, allowedOrigin);
-      } catch {
-        return json({ error: "Account service is temporarily unavailable. Please try again." }, 500, allowedOrigin);
+      } catch (error) {
+        console.error("MiniAI account request failed", { stage: authStage, message: String(error?.message || error) });
+        return json({ error: `Account service is temporarily unavailable. Please try again. (Code: ${authStage})` }, 500, allowedOrigin);
       }
     }
 
