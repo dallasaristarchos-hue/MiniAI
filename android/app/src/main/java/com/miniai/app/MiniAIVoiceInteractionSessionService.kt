@@ -16,12 +16,13 @@ private class MiniAIVoiceInteractionSession(
     override fun onShow(args: Bundle?, showFlags: Int) {
         super.onShow(args, showFlags)
         val launch = android.content.Intent(appContext, MainActivity::class.java).apply {
+            action = android.content.Intent.ACTION_ASSIST
             addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
             addFlags(android.content.Intent.FLAG_ACTIVITY_SINGLE_TOP)
             addFlags(android.content.Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)
             putExtra("opened_as_assistant", true)
         }
-        appContext.startActivity(launch)
+        startAssistantActivity(launch)
         hide()
     }
 }

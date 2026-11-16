@@ -43,7 +43,7 @@ class MainActivity : Activity() {
         webView.settings.allowFileAccess = false
         webView.settings.allowContentAccess = true
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) webView.settings.safeBrowsingEnabled = true
-        pendingAssistantOpen = intent.getBooleanExtra("opened_as_assistant", false)
+        pendingAssistantOpen = intent.getBooleanExtra("opened_as_assistant", false) || intent.action == Intent.ACTION_ASSIST
         webView.webViewClient = object : WebViewClient() {
             override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
                 val uri = request.url
@@ -111,7 +111,7 @@ class MainActivity : Activity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
-        if (intent.getBooleanExtra("opened_as_assistant", false)) {
+        if (intent.getBooleanExtra("opened_as_assistant", false) || intent.action == Intent.ACTION_ASSIST) {
             pendingAssistantOpen = true
             if (::webView.isInitialized) webView.post {
                 webView.evaluateJavascript("window.openMiniAIAssistant && window.openMiniAIAssistant()") { result ->
