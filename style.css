@@ -359,3 +359,15 @@ button:focus-visible,a:focus-visible,[role=button]:focus-visible{outline:2px sol
   .send-button{width:34px!important;height:34px!important;flex-basis:34px!important;}
   .disclaimer{margin-top:6px!important;font-size:9px!important;}
 }
+
+
+/* MiniAI 2.9: Android status-bar safe area and reliable keyboard resize. */
+@media(max-width:760px){
+  .app-shell{height:var(--app-height,100dvh)!important;min-height:0!important;transform:none!important;}
+  .chat-panel{height:var(--app-height,100dvh)!important;max-height:var(--app-height,100dvh)!important;min-height:0!important;}
+  .topbar{height:50px!important;min-height:50px!important;flex:0 0 50px!important;padding-top:0!important;}
+  .conversation{min-height:0!important;flex:1 1 0!important;overflow-y:auto!important;overscroll-behavior:contain!important;}
+  .composer-area{flex:0 0 auto!important;position:relative!important;z-index:5!important;padding:7px 9px max(7px,env(safe-area-inset-bottom))!important;}
+  #messageInput{max-height:min(108px,18dvh)!important;scroll-margin-bottom:0!important;}
+  .disclaimer{margin-top:4px!important;}
+}

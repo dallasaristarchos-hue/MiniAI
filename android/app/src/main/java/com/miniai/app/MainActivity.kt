@@ -33,10 +33,8 @@ class MainActivity : Activity() {
         super.onCreate(savedInstanceState)
         window.statusBarColor = Color.BLACK
         window.navigationBarColor = Color.BLACK
-        window.setSoftInputMode(
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING
-            else WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE
-        )
+        // Let Android resize the WebView above the IME on every supported Android version.
+        window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
         webView = WebView(this)
         webView.setBackgroundColor(Color.BLACK)
         webView.settings.javaScriptEnabled = true
@@ -90,9 +88,8 @@ class MainActivity : Activity() {
         webView.setOnApplyWindowInsetsListener { view, insets ->
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
                 val systemBars = insets.getInsets(WindowInsets.Type.systemBars() or WindowInsets.Type.displayCutout())
-                val ime = insets.getInsets(WindowInsets.Type.ime())
-                val bottomInset = if (insets.isVisible(WindowInsets.Type.ime())) maxOf(systemBars.bottom, ime.bottom) else systemBars.bottom
-                view.setPadding(systemBars.left, systemBars.top, systemBars.right, bottomInset)
+                // ADJUST_RESIZE already accounts for the keyboard. Only reserve system-bar space here.
+                view.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom)
             } else {
                 @Suppress("DEPRECATION")
                 view.setPadding(insets.systemWindowInsetLeft, insets.systemWindowInsetTop, insets.systemWindowInsetRight, insets.systemWindowInsetBottom)
@@ -125,8 +122,10 @@ class MainActivity : Activity() {
                 if (result == "true") {
                     pendingAssistantOpen = false
                     webView.requestFocus()
-                    val inputMethod = getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager
-                    inputMethod.showSoftInput(webView, InputMethodManager.SHOW_IMPLICIT)
+                    webView.postDelayed({
+                        val inputMethod = getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager
+                        inputMethod.showSoftInput(webView, InputMethodManager.SHOW_IMPLICIT)
+                    }, 180)
                 } else {
                     pendingAssistantOpen = true
                 }

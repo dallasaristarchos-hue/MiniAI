@@ -246,19 +246,16 @@ $("#makeMotion").addEventListener("click",()=>{
 document.addEventListener("keydown",event=>{if((event.ctrlKey||event.metaKey)&&event.key.toLowerCase()==="k"){event.preventDefault();makeChat()}if(event.key==="Escape"){closeSidebar();closeAttachMenu()}});
 function updateMobileViewport(){
   const viewport=window.visualViewport;
-  const layoutHeight=window.innerHeight||document.documentElement.clientHeight;
-  const height=viewport?Math.min(layoutHeight,viewport.height):layoutHeight;
-  const offset=viewport?.offsetTop||0;
+  // Android ADJUST_RESIZE shrinks the WebView when the keyboard opens.
+  // Use the visible height once; do not translate the entire app by offsetTop.
+  const height=viewport?viewport.height:(window.innerHeight||document.documentElement.clientHeight);
   document.documentElement.style.setProperty("--app-height",`${Math.round(height)}px`);
-  document.documentElement.style.setProperty("--app-offset-top",`${Math.round(offset)}px`);
+  document.documentElement.style.setProperty("--app-offset-top","0px");
   document.documentElement.classList.toggle("keyboard-open",Boolean(input&&document.activeElement===input));
 }
 function keepMessageFieldVisible(){
   updateMobileViewport();
-  requestAnimationFrame(()=>{
-    updateMobileViewport();
-    if(document.activeElement===input) input.scrollIntoView({block:"nearest",behavior:"auto"});
-  });
+  requestAnimationFrame(updateMobileViewport);
 }
 updateMobileViewport();
 window.addEventListener("resize",updateMobileViewport,{passive:true});
