@@ -439,7 +439,10 @@ async function runGitHubCodeAgent(env, config, task) {
   const api = async (path, method = "GET", payload = null) => {
     const response = await fetch("https://api.github.com" + path, { method, headers: { ...(token ? { Authorization: "Bearer " + token } : {}), Accept: "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28", "User-Agent": "MiniAI-Code-Agent" , ...(payload ? { "Content-Type": "application/json" } : {}) }, ...(payload ? { body: JSON.stringify(payload) } : {}) });
     const data = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(data.message || `GitHub API request failed (${response.status}).`);
+    if (!response.ok) {
+      const message = /rate limit/i.test(String(data.message || "")) ? "GitHub's unauthenticated API rate limit has been reached. Connect a fine-grained GitHub token in MiniAI Settings to continue." : (data.message || `GitHub API request failed (${response.status}).`);
+      throw new Error(message);
+    }
     return data;
   };
   const repoInfo = await api(`/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}`);
@@ -634,19 +637,19 @@ export default {
         }
         const repoResponse = await fetch(`https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}`, { headers });
         const repository = await repoResponse.json().catch(() => ({}));
-        if (!repoResponse.ok) return json({ error: repository.message || "GitHub could not access that repository. Check the repository name and token access." }, repoResponse.status === 404 ? 404 : 400, allowedOrigin);
+        if (!repoResponse.ok) return json({ error: /rate limit/i.test(String(repository.message || "")) ? "GitHub's unauthenticated API rate limit has been reached. Add a fine-grained GitHub token for reliable access." : (repository.message || "GitHub could not access that repository. Check the repository name and token access.") }, repoResponse.status === 404 ? 404 : 400, allowedOrigin);
         if (!token && repository.private) return json({ error: "That repository is private. Add a GitHub token to connect it." }, 401, allowedOrigin);
         const branch = String(body.branch || repository.default_branch || "main").trim();
         if (!/^[A-Za-z0-9._/-]{1,120}$/.test(branch) || branch.includes("..")) return json({ error: "Invalid branch name." }, 400, allowedOrigin);
         const branchRefResponse = await fetch(`https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/git/ref/heads/${branch.split("/").map(encodeURIComponent).join("/")}`, { headers });
         const branchRef = await branchRefResponse.json().catch(() => ({}));
-        if (!branchRefResponse.ok) return json({ error: branchRef.message || "GitHub could not find that branch." }, 400, allowedOrigin);
+        if (!branchRefResponse.ok) return json({ error: /rate limit/i.test(String(branchRef.message || "")) ? "GitHub's unauthenticated API rate limit has been reached. Add a fine-grained GitHub token for reliable access." : (branchRef.message || "GitHub could not find that branch.") }, 400, allowedOrigin);
         const headCommitResponse = await fetch(`https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/git/commits/${branchRef.object?.sha}`, { headers });
         const headCommit = await headCommitResponse.json().catch(() => ({}));
-        if (!headCommitResponse.ok || !headCommit.tree?.sha) return json({ error: headCommit.message || "GitHub could not read the branch commit." }, 400, allowedOrigin);
+        if (!headCommitResponse.ok || !headCommit.tree?.sha) return json({ error: /rate limit/i.test(String(headCommit.message || "")) ? "GitHub's unauthenticated API rate limit has been reached. Add a fine-grained GitHub token for reliable access." : (headCommit.message || "GitHub could not read the branch commit.") }, 400, allowedOrigin);
         const treeResponse = await fetch(`https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/git/trees/${headCommit.tree.sha}?recursive=1`, { headers });
         const tree = await treeResponse.json().catch(() => ({}));
-        if (!treeResponse.ok) return json({ error: tree.message || "GitHub could not read this branch. Check Contents: Read permission." }, 400, allowedOrigin);
+        if (!treeResponse.ok) return json({ error: /rate limit/i.test(String(tree.message || "")) ? "GitHub's unauthenticated API rate limit has been reached. Add a fine-grained GitHub token for reliable access." : (tree.message || "GitHub could not read this branch. Check Contents: Read permission.") }, 400, allowedOrigin);
         return json({ connected: true, login: user.login || "GitHub user", repository: repository.full_name || `${owner}/${repo}`, branch, fileCount: (tree.tree || []).filter(item => item.type === "blob").length, writePermission: !token ? "read-only" : repository.permissions?.push === true ? "write" : "not confirmed" }, 200, allowedOrigin);
       } catch (error) {
         return json({ error: String(error?.message || "GitHub connection failed.").slice(0, 240) }, 502, allowedOrigin);
