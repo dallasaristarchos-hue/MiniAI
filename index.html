@@ -16,7 +16,7 @@
 <link href="https://fonts.googleapis.com" rel="preconnect"/>
 <link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&amp;family=Space+Grotesk:wght@500;600;700&amp;display=swap" rel="stylesheet"/>
-<link href="style.css?v=20261117settings1" rel="stylesheet"/>
+<link href="style.css?v=20261117workspace1" rel="stylesheet"/>
 </head>
 <body>
 <div class="app-shell">
@@ -25,30 +25,30 @@
 <a aria-label="MiniAI home" class="brand" href="#"><span class="brand-mark">✦</span><span>mini<span class="brand-ai">AI</span></span></a>
 <button aria-label="Close menu" class="icon-button sidebar-close" id="closeSidebar" type="button">×</button>
 </div>
-<button class="new-chat" id="newChat" type="button"><span class="new-chat-icon">＋</span><span>New chat</span><kbd>⌘ K</kbd></button>
+<button class="new-chat" id="newChat" type="button"><span class="new-chat-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></span><span>New chat</span><kbd>⌘ K</kbd></button>
 <button class="new-code-chat" id="newCodeChat" type="button"><span class="code-chat-icon"><svg aria-hidden="true" viewbox="0 0 24 24"><path d="m8 8-4 4 4 4M16 8l4 4-4 4M14 5l-4 14"></path></svg></span><span><strong>New coding chat</strong><small>Dedicated coding workspace</small></span></button>
-<button class="studio-launch" id="studioLaunch" type="button"><span>✧</span><span>Image Studio</span><small>Create &amp; edit images</small></button>
-<div class="history-heading"><span class="section-label">YOUR CONVERSATIONS</span><button aria-label="Search chats" class="icon-button tiny" id="searchToggle" title="Search chats" type="button">⌕</button></div>
-<label class="history-search" id="historySearchWrap"><span>⌕</span><input autocomplete="off" id="historySearch" placeholder="Search chats…" type="search"/></label>
+<button class="studio-launch" id="studioLaunch" type="button"><span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 2 1.8 6.2L20 10l-6.2 1.8L12 18l-1.8-6.2L4 10l6.2-1.8L12 2Zm7 13 .8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8L19 15Z"/></svg></span><span>Image Studio</span><small>Create &amp; edit images</small></button>
+<div class="history-heading"><span class="section-label">YOUR CONVERSATIONS</span><button aria-label="Search chats" class="icon-button tiny" id="searchToggle" title="Search chats" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.8"/><path d="m16 16 5 5"/></svg></button></div>
+<label class="history-search" id="historySearchWrap"><span><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.8"/><path d="m16 16 5 5"/></svg></span><input autocomplete="off" id="historySearch" placeholder="Search chats…" type="search"/></label>
 <nav aria-label="Recent conversations" class="history-list" id="historyList"></nav>
 <div class="sidebar-bottom">
-<button class="settings-launch" id="settingsLaunch" type="button"><span>⚙</span><span>Settings</span><small>Voice &amp; preferences</small></button>
-<div class="upgrade-card"><span class="upgrade-sparkle">✧</span><div><strong>Made with curiosity</strong><small>A little space for big ideas.</small></div></div>
+<button class="settings-launch" id="settingsLaunch" type="button"><span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8Zm0-5v2m0 14v2m9-9h-2M5 12H3m15.4-6.4-1.4 1.4M7 17l-1.4 1.4m12.8 0L17 17M7 7 5.6 5.6"/></svg></span><span>Settings</span><small>Voice &amp; preferences</small></button>
+<div class="upgrade-card"><span class="upgrade-sparkle"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 2 1.8 6.2L20 10l-6.2 1.8L12 18l-1.8-6.2L4 10l6.2-1.8L12 2Zm7 13 .8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8L19 15Z"/></svg></span><div><strong>Made with curiosity</strong><small>A little space for big ideas.</small></div></div>
 <div class="profile-row"><div class="profile-avatar">M</div><div class="profile-copy"><strong>MiniAI</strong><small>Personal assistant</small></div><span class="online-dot" id="sidebarStatus" title="Checking connection"></span></div>
 </div>
 </aside>
 <main class="chat-panel">
 <header class="topbar">
 <div class="topbar-left">
-<button aria-controls="sidebar" aria-expanded="false" aria-label="Open menu" class="icon-button mobile-menu" id="mobileMenu" type="button">☰</button>
+<button aria-controls="sidebar" aria-expanded="false" aria-label="Open menu" class="icon-button mobile-menu" id="mobileMenu" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
 <div class="mobile-brand"><span class="brand-mark">✦</span><span>MiniAI</span></div>
 </div>
 <div class="model-pill"><span class="status-dot" id="connectionDot"></span><span id="connectionLabel">MiniAI 2.0</span></div>
 <div class="chat-mode-badge" hidden="" id="chatModeBadge"><svg aria-hidden="true" viewbox="0 0 24 24"><path d="m8 8-4 4 4 4M16 8l4 4-4 4M14 5l-4 14"></path></svg><span>Coding mode</span></div>
 <div class="topbar-actions">
-<button aria-label="Start voice call" class="icon-button voice-call-button" id="voiceCallButton" title="Voice call" type="button">☎</button>
-<button aria-label="Export conversation" class="icon-button" id="exportChat" title="Export conversation" type="button">↧</button>
-<button aria-label="Clear conversation" class="icon-button clear-button" id="clearChat" title="Clear conversation" type="button">⌫</button>
+<button aria-label="Start voice call" class="icon-button voice-call-button" id="voiceCallButton" title="Voice call" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h4l2 5-3 2a15 15 0 0 0 5 5l2-3 5 2v4a2 2 0 0 1-2 2A14 14 0 0 1 3 6a2 2 0 0 1 2-2Z"/></svg></button>
+<button aria-label="Export conversation" class="icon-button" id="exportChat" title="Export conversation" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m-5-5 5 5 5-5M4 20h16"/></svg></button>
+<button aria-label="Clear conversation" class="icon-button clear-button" id="clearChat" title="Clear conversation" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16l-1 13H5L4 7Zm4-3h8l1 3H7l1-3Zm1 7v5m6-5v5"/></svg></button>
 </div>
 </header>
 <section aria-label="Chat messages" aria-live="polite" class="conversation" id="conversation">
@@ -70,7 +70,7 @@
 <input class="sr-only" directory="" id="folderInput" multiple="" type="file" webkitdirectory=""/>
 <input accept="image/*" capture="environment" class="sr-only" id="cameraInput" type="file"/>
 <input accept="image/*" class="sr-only" id="galleryInput" multiple="" type="file"/>
-<div class="composer-tools"><div class="attach-wrap"><button aria-controls="attachMenu" aria-expanded="false" aria-label="Add photos or files" class="attach-button" id="attachButton" title="Add photos or files" type="button"><svg aria-hidden="true" viewbox="0 0 24 24"><path d="M12 5v14M5 12h14"></path></svg></button><div class="attach-menu" hidden="" id="attachMenu"><div class="attach-menu-heading">Add to your message</div><button data-pick="camera" type="button"><span class="attach-option-icon"><svg aria-hidden="true" viewbox="0 0 24 24"><path d="M4 7h3l1.5-2h7L17 7h3a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1Z"></path><circle cx="12" cy="13" r="3.5"></circle></svg></span><span class="attach-option-copy"><strong>Take a photo</strong><small>Open your camera and send</small></span></button><button data-pick="gallery" type="button"><span class="attach-option-icon"><svg aria-hidden="true" viewbox="0 0 24 24"><rect height="16" rx="3" width="18" x="3" y="4"></rect><circle cx="8.5" cy="9" r="1.5"></circle><path d="m4 17 5-5 3 3 3-4 5 6"></path></svg></span><span class="attach-option-copy"><strong>Photo library</strong><small>Choose pictures from your phone</small></span></button><button data-pick="files" type="button"><span class="attach-option-icon"><svg aria-hidden="true" viewbox="0 0 24 24"><path d="M13 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V10Z"></path><path d="M13 3v7h7M8 14h8M8 17h8"></path></svg></span><span class="attach-option-copy"><strong>Files</strong><small>Upload code, documents and more</small></span></button></div></div><span class="input-hint">↵ send · shift + ↵ new line</span><button aria-label="Dictate message" class="voice-chat-button" id="voiceChatButton" title="Speak your message" type="button">🎙</button><button aria-label="Send message" class="send-button" id="sendButton" type="submit"><span>↑</span></button></div>
+<div class="composer-tools"><div class="attach-wrap"><button aria-controls="attachMenu" aria-expanded="false" aria-label="Add photos or files" class="attach-button" id="attachButton" title="Add photos or files" type="button"><svg aria-hidden="true" viewbox="0 0 24 24"><path d="M12 5v14M5 12h14"></path></svg></button><div class="attach-menu" hidden="" id="attachMenu"><div class="attach-menu-heading">Add to your message</div><button data-pick="camera" type="button"><span class="attach-option-icon"><svg aria-hidden="true" viewbox="0 0 24 24"><path d="M4 7h3l1.5-2h7L17 7h3a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1Z"></path><circle cx="12" cy="13" r="3.5"></circle></svg></span><span class="attach-option-copy"><strong>Take a photo</strong><small>Open your camera and send</small></span></button><button data-pick="gallery" type="button"><span class="attach-option-icon"><svg aria-hidden="true" viewbox="0 0 24 24"><rect height="16" rx="3" width="18" x="3" y="4"></rect><circle cx="8.5" cy="9" r="1.5"></circle><path d="m4 17 5-5 3 3 3-4 5 6"></path></svg></span><span class="attach-option-copy"><strong>Photo library</strong><small>Choose pictures from your phone</small></span></button><button data-pick="files" type="button"><span class="attach-option-icon"><svg aria-hidden="true" viewbox="0 0 24 24"><path d="M13 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V10Z"></path><path d="M13 3v7h7M8 14h8M8 17h8"></path></svg></span><span class="attach-option-copy"><strong>Files</strong><small>Upload code, documents and more</small></span></button></div></div><span class="input-hint">↵ send · shift + ↵ new line</span><button aria-label="Dictate message" class="voice-chat-button" id="voiceChatButton" title="Speak your message" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="2" width="6" height="13" rx="3"/><path d="M5 11a7 7 0 0 0 14 0m-7 7v4m-4 0h8"/></svg></button><button aria-label="Send message" class="send-button" id="sendButton" type="submit"><span>↑</span></button></div>
 </form>
 <p class="disclaimer">MiniAI can make mistakes. Verify important information. <span>✦</span></p>
 </footer>
