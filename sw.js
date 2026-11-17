@@ -1,5 +1,5 @@
-const CACHE = "miniai-shell-v2-8";
-const SHELL = ["/", "/index.html", "/style.css?v=20261116images3", "/script.js?v=20261116images3", "/manifest.webmanifest", "/assets/miniai-192.png", "/assets/miniai-512.png"];
+const CACHE = "miniai-shell-v2-9";
+const SHELL = ["/", "/index.html", "/style.css?v=20261116images3", "/script.js?v=20261117codeagent4", "/manifest.webmanifest", "/assets/miniai-192.png", "/assets/miniai-512.png"];
 
 self.addEventListener("install", event => {
   event.waitUntil(
