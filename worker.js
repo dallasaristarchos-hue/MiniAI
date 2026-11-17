@@ -540,15 +540,21 @@ export default {
         }
         return payload.result;
       };
+      const accountId = typeof body.accountId === "string" ? body.accountId.trim() : "";
       try {
         if (action === "connect") {
+          if (token.startsWith("cfat_")) {
+            if (!/^[a-f0-9]{32}$/i.test(accountId)) return json({ error: "Enter your 32-character Cloudflare account ID to connect an account API token." }, 400, allowedOrigin);
+            const verification = await cfRequest(`/accounts/${accountId}/tokens/verify`);
+            if (String(verification?.status || "").toLowerCase() !== "active") return json({ error: "This Cloudflare account API token is not active." }, 401, allowedOrigin);
+            return json({ connected: true, accounts: [{ id: accountId, name: "Cloudflare account" }], accountsWarning: "" }, 200, allowedOrigin);
+          }
           const verification = await cfRequest("/user/tokens/verify");
           if (String(verification?.status || "").toLowerCase() !== "active") return json({ error: "This Cloudflare API token is not active." }, 401, allowedOrigin);
           let accounts = [], accountsWarning = "";
           try { accounts = await cfRequest("/accounts?per_page=50") || []; } catch { accountsWarning = "Token verified. Add Account Settings Read permission to list accounts, or enter your account ID manually."; }
           return json({ connected: true, accounts, accountsWarning }, 200, allowedOrigin);
         }
-        const accountId = typeof body.accountId === "string" ? body.accountId.trim() : "";
         if (!/^[a-f0-9]{32}$/i.test(accountId)) return json({ error: "Enter a valid 32-character Cloudflare account ID." }, 400, allowedOrigin);
         if (action === "dashboard") {
           const [workers, pages] = await Promise.all([cfRequest(`/accounts/${accountId}/workers/scripts`), cfRequest(`/accounts/${accountId}/pages/projects`) ]);
