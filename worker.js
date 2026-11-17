@@ -519,6 +519,59 @@ export default {
       }
     }
 
+    if (url.pathname === "/api/cloudflare") {
+      if (!allowedOrigin) return json({ error: "Origin not allowed" }, 403, "");
+      if (request.method !== "POST") return json({ error: "Method not allowed" }, 405, allowedOrigin);
+      if (!env.DB) return json({ error: "MiniAI account service is unavailable." }, 503, allowedOrigin);
+      const miniAccount = await authenticatedAccount(request, env);
+      if (!miniAccount) return json({ error: "Sign in to MiniAI before connecting Cloudflare." }, 401, allowedOrigin);
+      let body;
+      try { body = await readJsonBody(request, 12000); } catch { return json({ error: "Invalid Cloudflare request." }, 400, allowedOrigin); }
+      const token = typeof body.token === "string" ? body.token.trim() : "";
+      if (!/^[A-Za-z0-9._-]{20,256}$/.test(token)) return json({ error: "Enter a valid Cloudflare API token." }, 400, allowedOrigin);
+      const action = typeof body.action === "string" ? body.action : "";
+      if (action === "connect" && await authRateLimited(request, "cloudflare-connect")) return json({ error: "Too many connection attempts. Please wait five minutes." }, 429, allowedOrigin);
+      const cfRequest = async (path, method = "GET") => {
+        const response = await fetch("https://api.cloudflare.com/client/v4" + path, { method, headers: { Authorization: "Bearer " + token, Accept: "application/json", ...(method === "POST" ? { "Content-Type": "application/json" } : {}) }, ...(method === "POST" ? { body: "{}" } : {}) });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok || payload.success === false) {
+          const message = payload.errors?.[0]?.message || (response.status === 401 ? "Cloudflare rejected this API token." : `Cloudflare API request failed (${response.status}).`);
+          const error = new Error(message); error.status = response.status; throw error;
+        }
+        return payload.result;
+      };
+      try {
+        if (action === "connect") {
+          const verification = await cfRequest("/user/tokens/verify");
+          if (String(verification?.status || "").toLowerCase() !== "active") return json({ error: "This Cloudflare API token is not active." }, 401, allowedOrigin);
+          let accounts = [], accountsWarning = "";
+          try { accounts = await cfRequest("/accounts?per_page=50") || []; } catch { accountsWarning = "Token verified. Add Account Settings Read permission to list accounts, or enter your account ID manually."; }
+          return json({ connected: true, accounts, accountsWarning }, 200, allowedOrigin);
+        }
+        const accountId = typeof body.accountId === "string" ? body.accountId.trim() : "";
+        if (!/^[a-f0-9]{32}$/i.test(accountId)) return json({ error: "Enter a valid 32-character Cloudflare account ID." }, 400, allowedOrigin);
+        if (action === "dashboard") {
+          const [workers, pages] = await Promise.all([cfRequest(`/accounts/${accountId}/workers/scripts`), cfRequest(`/accounts/${accountId}/pages/projects`) ]);
+          return json({ workers: Array.isArray(workers) ? workers : [], pages: Array.isArray(pages) ? pages : [] }, 200, allowedOrigin);
+        }
+        const projectName = typeof body.projectName === "string" ? body.projectName.trim() : "";
+        if (!["deployments", "retry", "rollback"].includes(action)) return json({ error: "Unsupported Cloudflare action." }, 400, allowedOrigin);
+        if (!/^[a-z0-9][a-z0-9-]{0,62}$/.test(projectName)) return json({ error: "Invalid Pages project name." }, 400, allowedOrigin);
+        if (action === "deployments") {
+          const deployments = await cfRequest(`/accounts/${accountId}/pages/projects/${encodeURIComponent(projectName)}/deployments`);
+          return json({ deployments: Array.isArray(deployments) ? deployments : [] }, 200, allowedOrigin);
+        }
+        const deploymentId = typeof body.deploymentId === "string" ? body.deploymentId.trim() : "";
+        if (!/^[a-f0-9]{8}-[a-f0-9-]{27}$/i.test(deploymentId)) return json({ error: "Invalid deployment ID." }, 400, allowedOrigin);
+        const suffix = `/accounts/${accountId}/pages/projects/${encodeURIComponent(projectName)}/deployments/${encodeURIComponent(deploymentId)}`;
+        const result = await cfRequest(suffix + (action === "rollback" ? "/rollback" : "/retry"), "POST");
+        return json({ ok: true, deployment: result }, 200, allowedOrigin);
+      } catch (error) {
+        const status = Number(error?.status) >= 400 && Number(error?.status) < 500 ? Number(error.status) : 502;
+        return json({ error: String(error?.message || "Cloudflare is temporarily unavailable.").slice(0, 240) }, status, allowedOrigin);
+      }
+    }
+
     if (url.pathname === "/api/reports") {
       if (!allowedOrigin) return json({ error: "Origin not allowed" }, 403, "");
       if (request.method !== "POST") return json({ error: "Method not allowed" }, 405, allowedOrigin);
