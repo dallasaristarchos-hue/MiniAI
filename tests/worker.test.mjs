@@ -151,12 +151,34 @@ test("FLUX.2 Klein image generation sends supported multipart inputs", async () 
     });
     const response = await worker.fetch(request, env);
     assert.equal(response.status, 200);
-    assert.match(searchedUrl, /Jeffrey%20Epstein/i);
+    assert.match(searchedUrl, /q=Epstein/i);
     assert.doesNotMatch(searchedUrl, /Epstin/i);
-    assert.equal(calls.length, 2);
-    assert.match(calls[1].messages[0].content, /Epstin/);
-    assert.match(await response.text(), /Jeffrey Epstein is the intended name/);
+    assert.equal(calls.length, 1);
+    assert.match(calls[0].messages[0].content, /Epstin/);
+    assert.match(await response.text(), /Who is Jeffrey Epstein/);
   } finally {
     globalThis.fetch = originalFetch;
   }
+});
+
+
+test("GitHub connection rejects an invalid token without contacting GitHub", async () => {
+  const { env } = mockEnv();
+  const request = new Request("https://miniai-api.dallasaristarchos.workers.dev/api/github", {
+    method: "POST", headers: { Origin: origin, "Content-Type": "application/json" },
+    body: JSON.stringify({ token: "not-a-github-token", owner: "octocat", repo: "hello-world", branch: "main" })
+  });
+  const response = await worker.fetch(request, env);
+  assert.equal(response.status, 400);
+  assert.match((await response.json()).error, /fine-grained personal access token/i);
+});
+
+test("GitHub connection rejects unapproved origins", async () => {
+  const { env } = mockEnv();
+  const request = new Request("https://miniai-api.dallasaristarchos.workers.dev/api/github", {
+    method: "POST", headers: { Origin: "https://not-miniai.example", "Content-Type": "application/json" },
+    body: JSON.stringify({ token: "github_pat_" + "A".repeat(40), owner: "octocat", repo: "hello-world", branch: "main" })
+  });
+  const response = await worker.fetch(request, env);
+  assert.equal(response.status, 403);
 });
