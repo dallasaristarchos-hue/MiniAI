@@ -708,3 +708,14 @@ html,body{background:var(--workspace-bg)!important;color:var(--workspace-text)!i
  .welcome h1{font-size:clamp(36px,10vw,48px)!important}
  .welcome-copy{max-width:340px!important;font-size:13px!important}
 }
+
+
+/* Accordion content visibility and sizing fix */
+.settings-card{min-height:0!important}
+.settings-scroll{display:grid!important;min-height:0!important;flex:1 1 auto!important;align-content:start!important;grid-auto-rows:max-content!important;overflow-y:auto!important;overscroll-behavior:contain!important}
+.settings-accordion{height:auto!important;min-height:0!important;align-self:start!important;overflow:visible!important}
+.settings-accordion:not([open])>.settings-accordion-content{display:none!important}
+.settings-accordion[open]>.settings-accordion-content{display:block!important;position:static!important;width:100%!important;height:auto!important;min-height:0!important;max-height:none!important;overflow:visible!important;visibility:visible!important;opacity:1!important;transform:none!important;clip:auto!important;contain:none!important;flex:none!important;grid-column:1/-1!important}
+.settings-accordion[open]{height:auto!important;min-height:0!important;overflow:visible!important}
+.settings-accordion[open]>.settings-accordion-trigger{width:100%!important}
+@media(max-width:680px){.settings-scroll{grid-template-columns:minmax(0,1fr)!important;grid-auto-rows:max-content!important}.settings-accordion[open]>.settings-accordion-content{grid-column:auto!important}}
