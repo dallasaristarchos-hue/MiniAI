@@ -182,3 +182,29 @@ test("GitHub connection rejects unapproved origins", async () => {
   const response = await worker.fetch(request, env);
   assert.equal(response.status, 403);
 });
+
+
+test("GitHub connection supports public repositories in read-only mode without a token", async () => {
+  const { env } = mockEnv();
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async input => {
+    const url = String(input);
+    if (url.endsWith("/repos/octocat/demo")) return Response.json({ full_name: "octocat/demo", private: false, default_branch: "main" });
+    if (url.endsWith("/git/ref/heads/main")) return Response.json({ object: { sha: "a".repeat(40) } });
+    if (url.endsWith(`/git/commits/${"a".repeat(40)}`)) return Response.json({ tree: { sha: "b".repeat(40) } });
+    if (url.endsWith(`/git/trees/${"b".repeat(40)}?recursive=1`)) return Response.json({ tree: [{ path: "README.md", type: "blob" }] });
+    return Response.json({ message: "unexpected request" }, { status: 500 });
+  };
+  try {
+    const request = new Request("https://miniai-api.dallasaristarchos.workers.dev/api/github", {
+      method: "POST", headers: { Origin: origin, "Content-Type": "application/json" },
+      body: JSON.stringify({ token: "", owner: "octocat", repo: "demo", branch: "main" })
+    });
+    const response = await worker.fetch(request, env);
+    const data = await response.json();
+    assert.equal(response.status, 200);
+    assert.equal(data.connected, true);
+    assert.equal(data.writePermission, "read-only");
+    assert.equal(data.fileCount, 1);
+  } finally { globalThis.fetch = originalFetch; }
+});
