@@ -469,3 +469,30 @@ button{ -webkit-tap-highlight-color:transparent }
  .sidebar{background:#100e17!important;border-color:rgba(196,181,253,.13)!important}
 }
 @media(prefers-reduced-motion:reduce){.history-item,.icon-button,.composer,.send-button{transition:none!important}}
+
+
+/* Compact settings: each category expands downward on demand. */
+.settings-scroll{display:flex!important;flex-direction:column!important;gap:9px!important;padding:12px 18px 22px!important}
+.settings-accordion{display:block!important;overflow:hidden!important;margin:0!important;padding:0!important;border:1px solid rgba(255,255,255,.085)!important;border-radius:13px!important;background:rgba(255,255,255,.018)!important;transition:border-color .18s ease,background .18s ease!important}
+.settings-accordion[open]{border-color:rgba(180,153,245,.3)!important;background:rgba(167,139,250,.035)!important}
+.settings-accordion>.settings-accordion-trigger{display:flex!important;align-items:center!important;gap:12px!important;min-height:66px!important;margin:0!important;padding:12px 15px!important;cursor:pointer!important;list-style:none!important;user-select:none!important;-webkit-tap-highlight-color:transparent!important}
+.settings-accordion>.settings-accordion-trigger::-webkit-details-marker{display:none!important}
+.settings-accordion>.settings-accordion-trigger::marker{content:""!important}
+.settings-accordion>.settings-accordion-trigger:hover{background:rgba(255,255,255,.025)!important}
+.settings-accordion-trigger>div{flex:1 1 auto!important;min-width:0!important}
+.settings-accordion-trigger h3{margin:0 0 3px!important;font-size:13px!important;font-weight:650!important;letter-spacing:-.015em!important;color:#f0ebf5!important}
+.settings-accordion-trigger p{margin:0!important;font-size:11px!important;line-height:1.4!important;color:#918a9d!important}
+.settings-accordion-trigger .settings-icon{width:34px!important;height:34px!important;min-width:34px!important;display:grid!important;place-items:center!important;border-radius:10px!important;font-size:15px!important}
+.settings-accordion-trigger .settings-count{margin-left:auto!important;font-size:10px!important;white-space:nowrap!important}
+.settings-accordion-chevron{display:grid!important;place-items:center!important;width:27px!important;height:27px!important;min-width:27px!important;margin-left:5px!important;border:1px solid rgba(255,255,255,.09)!important;border-radius:8px!important;color:#b8a8d8!important;font-size:17px!important;line-height:1!important;transform:rotate(0deg)!important;transition:transform .2s ease,background .2s ease!important}
+.settings-accordion[open]>.settings-accordion-trigger .settings-accordion-chevron{transform:rotate(180deg)!important;background:rgba(167,139,250,.1)!important;border-color:rgba(167,139,250,.2)!important}
+.settings-accordion-content{padding:5px 15px 17px!important;border-top:1px solid rgba(255,255,255,.055)!important;animation:settingsDrop .18s ease both!important}
+@keyframes settingsDrop{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:translateY(0)}}
+.settings-accordion-content>.setting-field:first-child{margin-top:9px!important}
+.settings-accordion-content .settings-section-heading{display:none!important}
+.settings-accordion-content .settings-help{margin:12px 0 0!important;font-size:10px!important;line-height:1.6!important;color:#898293!important}
+.settings-header{padding:19px 22px 13px!important}
+.settings-header h2{font-size:23px!important;letter-spacing:-.045em!important}
+.settings-subtitle{font-size:12px!important;color:#96909f!important}
+@media(max-width:600px){.settings-scroll{padding:9px 12px max(16px,env(safe-area-inset-bottom))!important;gap:8px!important}.settings-accordion>.settings-accordion-trigger{min-height:62px!important;padding:10px 11px!important;gap:10px!important}.settings-accordion-content{padding:5px 11px 14px!important}.settings-header{padding:16px 17px 11px!important}}
+@media(prefers-reduced-motion:reduce){.settings-accordion-chevron,.settings-accordion{transition:none!important}.settings-accordion-content{animation:none!important}}
