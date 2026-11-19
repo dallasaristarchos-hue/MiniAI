@@ -21,28 +21,28 @@ jobs:
                   raise SystemExit(f"Expected source block not found in {path}; refusing partial update")
               p.write_text(s.replace(old, new, 1))
           replace("worker.js", '      let imageB64 = "";', '      let imageB64 = "";\n      let imageMime = "image/jpeg";')
-          replace("worker.js", 'You improve instructions for an image-editing model.', 'You are a faithful image-editing instruction interpreter. Follow the user's requested changes exactly and make no other changes. Preserve the original image, subjects, identities, facial features, pose, framing, composition, background, colors, and all unmentioned details. Do not add, remove, replace, beautify, stylize, crop, or rearrange anything unless explicitly requested. If the user asks for one specific change, make only that change. Keep exact requested text and spelling. Resolve typos from context without changing the intended meaning.')
+          replace("worker.js", "You improve instructions for an image-editing model.", "You are a faithful image-editing instruction interpreter. Follow the user's requested changes exactly and make no other changes. Preserve the original image, subjects, identities, facial features, pose, framing, composition, background, colors, and all unmentioned details. Do not add, remove, replace, beautify, stylize, crop, or rearrange anything unless explicitly requested. If the user asks for one specific change, make only that change. Keep exact requested text and spelling. Resolve typos from context without changing the intended meaning.")
           replace("worker.js", '''          const width = Math.max(256, Math.min(768, Math.round((Number(body.width) || 512) / 64) * 64));
-                  const height = Math.max(256, Math.min(768, Math.round((Number(body.height) || 512) / 64) * 64));
-                  const strength = Math.max(0.25, Math.min(0.85, Number(body.strength) || 0.55));
-                  result = await env.AI.run("@cf/runwayml/stable-diffusion-v1-5-img2img", {
-                    prompt: imagePrompt, image_b64: imageB64, width, height,
-                    num_steps: 20, strength, guidance: 7.5,
-                    seed: Math.floor(Math.random() * 2147483647)
-                  });''', '''          // FLUX.2 Klein accepts reference images as multipart binary fields.
-                  // Its reference-image inputs must be smaller than 512x512.
-                  const width = Math.max(256, Math.min(1920, Math.round(Number(body.width) || 1024)));
-                  const height = Math.max(256, Math.min(1920, Math.round(Number(body.height) || 1024)));
-                  const imageBytes = Uint8Array.from(atob(imageB64), character => character.charCodeAt(0));
-                  const form = new FormData();
-                  form.append("prompt", imagePrompt.slice(0, 4096));
-                  form.append("input_image_0", new Blob([imageBytes], { type: imageMime }), "reference-image");
-                  form.append("width", String(width));
-                  form.append("height", String(height));
-                  const multipart = new Response(form);
-                  result = await env.AI.run("@cf/black-forest-labs/flux-2-klein-4b", {
-                    multipart: { body: multipart.body, contentType: multipart.headers.get("content-type") }
-                  });''')
+                    const height = Math.max(256, Math.min(768, Math.round((Number(body.height) || 512) / 64) * 64));
+                    const strength = Math.max(0.25, Math.min(0.85, Number(body.strength) || 0.55));
+                    result = await env.AI.run("@cf/runwayml/stable-diffusion-v1-5-img2img", {
+                      prompt: imagePrompt, image_b64: imageB64, width, height,
+                      num_steps: 20, strength, guidance: 7.5,
+                      seed: Math.floor(Math.random() * 2147483647)
+                    });''', '''          // FLUX.2 Klein accepts reference images as multipart binary fields.
+                    // Its reference-image inputs must be smaller than 512x512.
+                    const width = Math.max(256, Math.min(1920, Math.round(Number(body.width) || 1024)));
+                    const height = Math.max(256, Math.min(1920, Math.round(Number(body.height) || 1024)));
+                    const imageBytes = Uint8Array.from(atob(imageB64), character => character.charCodeAt(0));
+                    const form = new FormData();
+                    form.append("prompt", imagePrompt.slice(0, 4096));
+                    form.append("input_image_0", new Blob([imageBytes], { type: imageMime }), "reference-image");
+                    form.append("width", String(width));
+                    form.append("height", String(height));
+                    const multipart = new Response(form);
+                    result = await env.AI.run("@cf/black-forest-labs/flux-2-klein-4b", {
+                      multipart: { body: multipart.body, contentType: multipart.headers.get("content-type") }
+                    });''')
           replace("script.js", '''[["photoBrightness","brightnessValue","%"],["photoContrast","contrastValue","%"],["photoSaturation","saturationValue","%"],["photoBlur","blurValue","px"],["photoStrength","strengthValue","%"]]''', '''[["photoBrightness","brightnessValue","%"],["photoContrast","contrastValue","%"],["photoSaturation","saturationValue","%"],["photoBlur","blurValue","px"]]''')
           replace("script.js", '''  const scale=Math.min(768/Math.max(sourceWidth,sourceHeight),Math.max(256/sourceWidth,256/sourceHeight));
                 const canvas=document.createElement("canvas");canvas.width=Math.max(256,Math.round(sourceWidth*scale));canvas.height=Math.max(256,Math.round(sourceHeight*scale));''', '''  // FLUX.2 Klein reference images must be strictly smaller than 512px on each side.
