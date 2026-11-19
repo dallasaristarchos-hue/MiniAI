@@ -197,7 +197,7 @@ $("#makeImage").addEventListener("click",async()=>{
   try{
     const payload={mode:studioImageMode,prompt};
     if(studioImageMode==="generate"){const dimensions={square:[1024,1024],landscape:[1152,864],wide:[1280,720],portrait:[864,1152],tall:[720,1280]};[payload.width,payload.height]=dimensions[$("#imageAspect").value]||dimensions.landscape;}
-    if(studioImageMode==="edit"){const photo=await makeEditablePhoto();payload.image=photo.data;payload.width=photo.width;payload.height=photo.height;payload.width=1024;payload.height=1024;}
+    if(studioImageMode==="edit"){const photo=await makeEditablePhoto();payload.image=photo.data;payload.width=Math.max(256,photo.width*2);payload.height=Math.max(256,photo.height*2);}
     const response=await fetch(API_URL.replace("/api/chat","/api/image"),{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});
     const data=await response.json().catch(()=>({}));if(!response.ok)throw new Error(data.error||`Image request failed (${response.status}).`);
     if(typeof data.image!=="string"||!data.image.startsWith("data:image/"))throw new Error("The image service returned an invalid image. Please try again.");
