@@ -853,6 +853,7 @@ export default {
       const mode = body.mode === "edit" ? "edit" : "generate";
       if (!prompt) return json({ error: mode === "edit" ? "Describe the changes you want to make to the photo." : "Describe the image you want to create." }, 400, allowedOrigin);
       let imageB64 = "";
+      let imageMime = "image/jpeg";
       if (mode === "edit") {
         const source = typeof body.image === "string" ? body.image : typeof body.imageData === "string" ? body.imageData : "";
         const match = source.match(/^data:image\/(?:png|jpeg|jpg|webp);base64,([A-Za-z0-9+/=\r\n]+)$/i);
@@ -863,7 +864,7 @@ export default {
         let imagePrompt = prompt;
         try {
           const systemPrompt = mode === "edit"
-            ? "You improve instructions for an image-editing model. Preserve the original photo's main subject, identity, pose, and composition unless the user explicitly asks to change them. Apply only the requested changes. Be specific about lighting, colors, background, and style when relevant. Never add unrequested people, logos, text, robots, or objects. Translate accurately to natural English. Return only the final instruction."
+            ? "You are a faithful image-editing instruction interpreter. Follow the user's requested changes exactly and make no other changes. Preserve the original image, subjects, identities, facial features, pose, framing, composition, background, colors, and all unmentioned details. Do not add, remove, replace, beautify, stylize, crop, or rearrange anything unless explicitly requested. If the user asks for one specific change, make only that change. Keep exact requested text and spelling. Resolve typos from context without changing the intended meaning. Preserve the original photo's main subject, identity, pose, and composition unless the user explicitly asks to change them. Apply only the requested changes. Be specific about lighting, colors, background, and style when relevant. Never add unrequested people, logos, text, robots, or objects. Translate accurately to natural English. Return only the final instruction."
             : "You are an expert visual art director and prompt engineer for a high-quality image model. Turn the user's idea into one precise, vivid, production-ready image prompt. Preserve the exact subject, identity when specified, number of people or objects, actions, relationships, setting, mood, and requested art style. Do not replace or reinterpret the core idea. Add useful visual direction: clear foreground/midground/background, composition and framing, camera angle and lens feel when relevant, lighting direction and quality, coherent color palette, realistic materials and textures, depth, atmosphere, and fine detail. Make spatial relationships unambiguous. For illustrations, describe linework, shape language, shading, and finish; for photorealism, describe natural anatomy, believable physics, realistic surfaces, and photographic lighting. Avoid generic filler, contradictory styles, clutter, accidental extra subjects, distorted anatomy, duplicate objects, watermarks, signatures, and gibberish text. Include readable text only when the user explicitly requests it, preserving the exact wording. Never add unrequested people, logos, brands, or objects. Translate the prompt into natural English only when helpful for the image model; retain proper names and exact requested wording. Return only the final prompt, with no explanation.";
           const promptResult = await env.AI.run(MODEL, { messages: [{ role: "system", content: systemPrompt }, { role: "user", content: prompt }], max_tokens: 380, temperature: 0.15, stream: false });
           const improved = typeof promptResult?.response === "string" ? promptResult.response : typeof promptResult?.choices?.[0]?.message?.content === "string" ? promptResult.choices[0].message.content : "";
@@ -872,13 +873,19 @@ export default {
 
         let result;
         if (mode === "edit") {
-          const width = Math.max(256, Math.min(768, Math.round((Number(body.width) || 512) / 64) * 64));
-          const height = Math.max(256, Math.min(768, Math.round((Number(body.height) || 512) / 64) * 64));
-          const strength = Math.max(0.25, Math.min(0.85, Number(body.strength) || 0.55));
-          result = await env.AI.run("@cf/runwayml/stable-diffusion-v1-5-img2img", {
-            prompt: imagePrompt, image_b64: imageB64, width, height,
-            num_steps: 20, strength, guidance: 7.5,
-            seed: Math.floor(Math.random() * 2147483647)
+          // FLUX.2 Klein accepts reference images as multipart binary fields.
+          // Its reference-image inputs must be smaller than 512x512.
+          const width = Math.max(256, Math.min(1920, Math.round(Number(body.width) || 1024)));
+          const height = Math.max(256, Math.min(1920, Math.round(Number(body.height) || 1024)));
+          const imageBytes = Uint8Array.from(atob(imageB64), character => character.charCodeAt(0));
+          const form = new FormData();
+          form.append("prompt", imagePrompt.slice(0, 4096));
+          form.append("input_image_0", new Blob([imageBytes], { type: imageMime }), "reference-image");
+          form.append("width", String(width));
+          form.append("height", String(height));
+          const multipart = new Response(form);
+          result = await env.AI.run("@cf/black-forest-labs/flux-2-klein-4b", {
+            multipart: { body: multipart.body, contentType: multipart.headers.get("content-type") }
           });
         } else {
           const width = Math.max(256, Math.min(1920, Math.round(Number(body.width) || 1024)));

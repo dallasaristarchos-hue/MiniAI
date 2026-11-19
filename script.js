@@ -169,7 +169,7 @@ document.querySelectorAll("[data-image-mode]").forEach(button=>button.addEventLi
   $("#imagePrompt").placeholder=studioImageMode==="edit"?"Describe exactly what you want changed in this photo…":"A dreamy purple city at sunset, cinematic lighting…";
   $("#imageResult").hidden=true;
 }));
-[["photoBrightness","brightnessValue","%"],["photoContrast","contrastValue","%"],["photoSaturation","saturationValue","%"],["photoBlur","blurValue","px"],["photoStrength","strengthValue","%"]].forEach(([id,label,suffix])=>$("#"+id).addEventListener("input",e=>{$("#"+label).textContent=e.target.value+suffix}));
+[["photoBrightness","brightnessValue","%"],["photoContrast","contrastValue","%"],["photoSaturation","saturationValue","%"],["photoBlur","blurValue","px"]].forEach(([id,label,suffix])=>$("#"+id).addEventListener("input",e=>{$("#"+label).textContent=e.target.value+suffix}));
 studioImageFile.addEventListener("change",()=>{
   const file=studioImageFile.files?.[0];if(!file)return;
   if(file.size>5*1024*1024){showToast("Choose an image under 5 MB.");studioImageFile.value="";return;}
@@ -181,8 +181,8 @@ async function makeEditablePhoto(){
   await new Promise((resolve,reject)=>{image.onload=resolve;image.onerror=()=>reject(new Error("Couldn't open the selected photo."));});
   const angle=Number($("#photoRotate").value)||0,swap=angle===90||angle===270;
   const sourceWidth=swap?image.height:image.width,sourceHeight=swap?image.width:image.height;
-  const scale=Math.min(768/Math.max(sourceWidth,sourceHeight),Math.max(256/sourceWidth,256/sourceHeight));
-  const canvas=document.createElement("canvas");canvas.width=Math.max(256,Math.round(sourceWidth*scale));canvas.height=Math.max(256,Math.round(sourceHeight*scale));
+  const scale=Math.min(448/Math.max(sourceWidth,sourceHeight),1);
+  const canvas=document.createElement("canvas");canvas.width=Math.max(1,Math.round(sourceWidth*scale));canvas.height=Math.max(1,Math.round(sourceHeight*scale));
   const ctx=canvas.getContext("2d");if(!ctx)throw new Error("Photo editing isn't supported in this browser.");
   ctx.translate(canvas.width/2,canvas.height/2);ctx.rotate(angle*Math.PI/180);
   ctx.filter=`brightness(${$("#photoBrightness").value}%) contrast(${$("#photoContrast").value}%) saturate(${$("#photoSaturation").value}%) blur(${$("#photoBlur").value}px)`;
@@ -197,7 +197,7 @@ $("#makeImage").addEventListener("click",async()=>{
   try{
     const payload={mode:studioImageMode,prompt};
     if(studioImageMode==="generate"){const dimensions={square:[1024,1024],landscape:[1152,864],wide:[1280,720],portrait:[864,1152],tall:[720,1280]};[payload.width,payload.height]=dimensions[$("#imageAspect").value]||dimensions.landscape;}
-    if(studioImageMode==="edit"){const photo=await makeEditablePhoto();payload.image=photo.data;payload.width=photo.width;payload.height=photo.height;payload.strength=Number($("#photoStrength").value)/100;}
+    if(studioImageMode==="edit"){const photo=await makeEditablePhoto();payload.image=photo.data;payload.width=photo.width;payload.height=photo.height;payload.width=1024;payload.height=1024;}
     const response=await fetch(API_URL.replace("/api/chat","/api/image"),{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});
     const data=await response.json().catch(()=>({}));if(!response.ok)throw new Error(data.error||`Image request failed (${response.status}).`);
     if(typeof data.image!=="string"||!data.image.startsWith("data:image/"))throw new Error("The image service returned an invalid image. Please try again.");
