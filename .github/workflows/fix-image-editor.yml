@@ -1,0 +1,88 @@
+name: Fix MiniAI image editor
+on:
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - name: Apply verified image editor fix
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          def replace(path, old, new):
+              p = Path(path)
+              s = p.read_text()
+              if old not in s:
+                  raise SystemExit(f"Expected source block not found in {path}; refusing partial update")
+              p.write_text(s.replace(old, new, 1))
+          replace("worker.js",
+          '''      let imageB64 = "";
+                if (mode === "edit") {
+                  const source = typeof body.image === "string" ? body.image : typeof body.imageData === "string" ? body.imageData : "";
+                  const match = source.match(/^data:image\\/(?:png|jpeg|jpg|webp);base64,([A-Za-z0-9+/=\\r\\n]+)$/i);
+                  imageB64 = match ? match[1].replace(/\\s/g, "") : (typeof body.image_b64 === "string" ? body.image_b64.replace(/\\s/g, "") : "");
+                  if (!imageB64 || imageB64.length > 7 * 1024 * 1024 || !/^[A-Za-z0-9+/]+={0,2}$/.test(imageB64)) return json({ error: "Choose a valid JPG, PNG or WebP photo under 5 MB." }, 400, allowedOrigin);
+                }''',
+          '''      let imageB64 = "";
+                let imageMime = "image/jpeg";
+                if (mode === "edit") {
+                  const source = typeof body.image === "string" ? body.image : typeof body.imageData === "string" ? body.imageData : "";
+                  const match = source.match(/^data:(image\\/(?:png|jpeg|jpg|webp));base64,([A-Za-z0-9+/=\\r\\n]+)$/i);
+                  imageB64 = match ? match[2].replace(/\\s/g, "") : (typeof body.image_b64 === "string" ? body.image_b64.replace(/\\s/g, "") : "");
+                  imageMime = match ? match[1].toLowerCase().replace("jpg", "jpeg") : "image/jpeg";
+                  if (!imageB64 || imageB64.length > 7 * 1024 * 1024 || !/^[A-Za-z0-9+/]+={0,2}$/.test(imageB64)) return json({ error: "Choose a valid JPG, PNG or WebP photo under 5 MB." }, 400, allowedOrigin);
+                }''')
+          replace("worker.js",
+          '''            ? "You improve instructions for an image-editing model. Preserve the original photo's main subject, identity, pose, and composition unless the user explicitly asks to change them. Apply only the requested changes. Be specific about lighting, colors, background, and style when relevant. Never add unrequested people, logos, text, robots, or objects. Translate accurately to natural English. Return only the final instruction."''',
+          '''            ? "You are a faithful image-editing instruction interpreter. Follow the user's requested changes exactly and make no other changes. Preserve the original image, subjects, identities, facial features, pose, framing, composition, background, colors, and all unmentioned details. Do not add, remove, replace, beautify, stylize, crop, or rearrange anything unless explicitly requested. If the user asks for one specific change, make only that change. Keep exact requested text and spelling. Resolve typos from context without changing the intended meaning. Return a concise, unambiguous instruction in natural English and nothing else."''')
+          replace("worker.js",
+          '''          const width = Math.max(256, Math.min(768, Math.round((Number(body.width) || 512) / 64) * 64));
+                  const height = Math.max(256, Math.min(768, Math.round((Number(body.height) || 512) / 64) * 64));
+                  const strength = Math.max(0.25, Math.min(0.85, Number(body.strength) || 0.55));
+                  result = await env.AI.run("@cf/runwayml/stable-diffusion-v1-5-img2img", {
+                    prompt: imagePrompt, image_b64: imageB64, width, height,
+                    num_steps: 20, strength, guidance: 7.5,
+                    seed: Math.floor(Math.random() * 2147483647)
+                  });''',
+          '''          // FLUX.2 Klein accepts reference images as multipart binary fields.
+                  // Its reference-image inputs must be smaller than 512x512.
+                  const width = Math.max(256, Math.min(1920, Math.round(Number(body.width) || 1024)));
+                  const height = Math.max(256, Math.min(1920, Math.round(Number(body.height) || 1024)));
+                  const imageBytes = Uint8Array.from(atob(imageB64), character => character.charCodeAt(0));
+                  const form = new FormData();
+                  form.append("prompt", imagePrompt.slice(0, 4096));
+                  form.append("input_image_0", new Blob([imageBytes], { type: imageMime }), "reference-image");
+                  form.append("width", String(width));
+                  form.append("height", String(height));
+                  const multipart = new Response(form);
+                  result = await env.AI.run("@cf/black-forest-labs/flux-2-klein-4b", {
+                    multipart: { body: multipart.body, contentType: multipart.headers.get("content-type") }
+                  });''')
+          replace("script.js",
+          '''[[\"photoBrightness\",\"brightnessValue\",\"%\"],[\"photoContrast\",\"contrastValue\",\"%\"],[\"photoSaturation\",\"saturationValue\",\"%\"],[\"photoBlur\",\"blurValue\",\"px\"],[\"photoStrength\",\"strengthValue\",\"%\"]]''',
+          '''[[\"photoBrightness\",\"brightnessValue\",\"%\"],[\"photoContrast\",\"contrastValue\",\"%\"],[\"photoSaturation\",\"saturationValue\",\"%\"],[\"photoBlur\",\"blurValue\",\"px\"]]''')
+          replace("script.js",
+          '''  const scale=Math.min(768/Math.max(sourceWidth,sourceHeight),Math.max(256/sourceWidth,256/sourceHeight));
+                const canvas=document.createElement("canvas");canvas.width=Math.max(256,Math.round(sourceWidth*scale));canvas.height=Math.max(256,Math.round(sourceHeight*scale));''',
+          '''  // FLUX.2 Klein reference images must be strictly smaller than 512px on each side.
+                const scale=Math.min(448/Math.max(sourceWidth,sourceHeight),1);
+                const canvas=document.createElement("canvas");canvas.width=Math.max(1,Math.round(sourceWidth*scale));canvas.height=Math.max(1,Math.round(sourceHeight*scale));''')
+          replace("script.js",
+          '''if(studioImageMode==="edit"){const photo=await makeEditablePhoto();payload.image=photo.data;payload.width=photo.width;payload.height=photo.height;payload.strength=Number($("#photoStrength").value)/100;}''',
+          '''if(studioImageMode==="edit"){const photo=await makeEditablePhoto();payload.image=photo.data;payload.width=1024;payload.height=1024;}''')
+          replace("index.html",
+          '''<label class="studio-label" for="photoBlur">Soft blur <span id="blurValue">0px</span></label><input id="photoBlur" max="8" min="0" type="range" value="0"/><label class="studio-label" for="photoStrength">AI edit strength <span id="strengthValue">55%</span></label><input id="photoStrength" max="85" min="25" type="range" value="55"/><small class="studio-hint">Lower keeps more of the original photo; higher makes stronger changes.</small>''',
+          '''<label class="studio-label" for="photoBlur">Soft blur <span id="blurValue">0px</span></label><input id="photoBlur" max="8" min="0" type="range" value="0"/>''')
+          PY
+          node --check worker.js
+          node --check script.js
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add worker.js script.js index.html
+          git commit -m "Fix image editor with FLUX.2 reference editing"
+          git push
