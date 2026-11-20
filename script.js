@@ -258,6 +258,19 @@ window.MiniAIWorkspace = {
   duplicateChat: id => { const source = chats.find(item => item.id === id); if (!source) return false; const copy = {...source, id: uid(), title: `${source.title} (copy)`, updatedAt: Date.now(), messages: source.messages.map(message => ({...message}))}; chats.unshift(copy); activeId = copy.id; save(); renderAll(); closeSidebar(); return true; }
 };
 
+window.MiniAICloudCode = {
+  githubState: () => ({ connected: githubConnected, owner: githubOwner, repo: githubRepo, branch: githubBranch }),
+  githubRequest: async (action, config = {}, extra = {}) => {
+    const response = await fetch(API_URL.replace("/api/chat", "/api/github/files"), { method: "POST", cache: "no-store", headers: { "Content-Type": "application/json", Accept: "application/json" }, body: JSON.stringify({ action, token: githubToken, owner: config.owner || githubOwner, repo: config.repo || githubRepo, branch: config.branch || githubBranch, ...extra }) });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.error || `GitHub file request failed (${response.status}).`);
+    return data;
+  },
+  cloudflareState: () => ({ connected: Boolean(cloudflareToken && currentAccount), accountId: cloudflareAccountId, accountName: cloudflareAccountName, signedIn: Boolean(currentAccount) }),
+  cloudflareRequest: (action, extra = {}) => cloudflareCall(action, { accountId: cloudflareAccountId, ...extra }),
+  toast: message => showToast(message)
+};
+
 bindRatingUI();
 if(githubConnected)setGitHubStatus("GitHub session restored for this tab. Repository access will be checked on your next code request.");
 if(!currentChat()){const chat={id:uid(),title:"New conversation",mode:"general",updatedAt:Date.now(),messages:[]};chats.unshift(chat);activeId=chat.id;save()}renderAll();checkConnection();

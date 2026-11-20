@@ -208,3 +208,141 @@ test("GitHub connection supports public repositories in read-only mode without a
     assert.equal(data.fileCount, 1);
   } finally { globalThis.fetch = originalFetch; }
 });
+
+
+test("GitHub file browser lists folders and files through the protected API", async () => {
+  const { env } = mockEnv(); const originalFetch = globalThis.fetch;
+  globalThis.fetch = async input => {
+    const url = String(input);
+    if (url.endsWith("/repos/octocat/demo")) return Response.json({ full_name: "octocat/demo", private: false });
+    if (url.endsWith("/contents?ref=main")) return Response.json([
+      { name: "src", path: "src", type: "dir", sha: "folder" },
+      { name: "README.md", path: "README.md", type: "file", sha: "readme", size: 12 },
+      { name: ".env", path: ".env", type: "file", sha: "secret", size: 5 }
+    ]);
+    return Response.json({ message: "unexpected request" }, { status: 500 });
+  };
+  try {
+    const request = new Request("https://miniai-api.dallasaristarchos.workers.dev/api/github/files", {
+      method: "POST", headers: { Origin: origin, "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "tree", token: "", owner: "octocat", repo: "demo", branch: "main", path: "" })
+    });
+    const response = await worker.fetch(request, env); const data = await response.json();
+    assert.equal(response.status, 200); assert.equal(data.entries.length, 2);
+    assert.deepEqual(data.entries.map(item => item.name), ["src", "README.md"]);
+  } finally { globalThis.fetch = originalFetch; }
+});
+
+test("GitHub file browser decodes a selected text file", async () => {
+  const { env } = mockEnv(); const originalFetch = globalThis.fetch;
+  globalThis.fetch = async input => {
+    const url = String(input);
+    if (url.endsWith("/repos/octocat/demo")) return Response.json({ full_name: "octocat/demo", private: false });
+    if (url.includes("/contents/src/app.js?ref=main")) return Response.json({ type: "file", name: "app.js", path: "src/app.js", sha: "sha-one", size: 13, html_url: "https://github.com/octocat/demo/blob/main/src/app.js", content: Buffer.from("console.log(1)").toString("base64") });
+    return Response.json({ message: "unexpected request" }, { status: 500 });
+  };
+  try {
+    const request = new Request("https://miniai-api.dallasaristarchos.workers.dev/api/github/files", {
+      method: "POST", headers: { Origin: origin, "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "read", token: "", owner: "octocat", repo: "demo", branch: "main", path: "src/app.js" })
+    });
+    const response = await worker.fetch(request, env); const data = await response.json();
+    assert.equal(response.status, 200); assert.equal(data.content, "console.log(1)"); assert.equal(data.sha, "sha-one");
+  } finally { globalThis.fetch = originalFetch; }
+});
+
+test("GitHub file editor commits an update using the file SHA", async () => {
+  const { env } = mockEnv(); const originalFetch = globalThis.fetch; let putBody = null;
+  globalThis.fetch = async (input, init = {}) => {
+    const url = String(input);
+    if (url.endsWith("/repos/octocat/demo")) return Response.json({ full_name: "octocat/demo", private: false });
+    if (url.includes("/contents/src/app.js?ref=main")) return Response.json({ type: "file", sha: "sha-one" });
+    if (url.includes("/contents/src/app.js") && init.method === "PUT") { putBody = JSON.parse(init.body); return Response.json({ content: { sha: "sha-two", html_url: "https://github.com/octocat/demo/blob/main/src/app.js" }, commit: { sha: "commit-two", html_url: "https://github.com/octocat/demo/commit/commit-two" } }); }
+    return Response.json({ message: "unexpected request" }, { status: 500 });
+  };
+  try {
+    const request = new Request("https://miniai-api.dallasaristarchos.workers.dev/api/github/files", {
+      method: "POST", headers: { Origin: origin, "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "write", token: "github_pat_" + "A".repeat(40), owner: "octocat", repo: "demo", branch: "main", path: "src/app.js", sha: "sha-one", content: "console.log(2)", message: "Update app" })
+    });
+    const response = await worker.fetch(request, env); const data = await response.json();
+    assert.equal(response.status, 200); assert.equal(data.sha, "sha-two"); assert.equal(data.commit, "commit-two");
+    assert.equal(putBody.sha, "sha-one"); assert.equal(Buffer.from(putBody.content, "base64").toString(), "console.log(2)");
+  } finally { globalThis.fetch = originalFetch; }
+});
+
+test("GitHub file editor rejects stale SHA versions instead of overwriting remote edits", async () => {
+  const { env } = mockEnv(); const originalFetch = globalThis.fetch; let writes = 0;
+  globalThis.fetch = async input => {
+    const url = String(input);
+    if (url.endsWith("/repos/octocat/demo")) return Response.json({ full_name: "octocat/demo", private: false });
+    if (url.includes("/contents/src/app.js?ref=main")) return Response.json({ type: "file", sha: "newer-sha" });
+    writes++; return Response.json({ message: "unexpected write" }, { status: 500 });
+  };
+  try {
+    const request = new Request("https://miniai-api.dallasaristarchos.workers.dev/api/github/files", {
+      method: "POST", headers: { Origin: origin, "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "write", token: "github_pat_" + "A".repeat(40), owner: "octocat", repo: "demo", branch: "main", path: "src/app.js", sha: "old-sha", content: "new source", message: "Update app" })
+    });
+    const response = await worker.fetch(request, env); const data = await response.json();
+    assert.equal(response.status, 409); assert.match(data.error, /changed on GitHub/i); assert.equal(writes, 0);
+  } finally { globalThis.fetch = originalFetch; }
+});
+
+test("Cloudflare Worker editor reads source and deploys with a content-only multipart update", async () => {
+  const { env } = mockEnv(); const originalFetch = globalThis.fetch; let uploaded = null;
+  globalThis.fetch = async (input, init = {}) => {
+    const url = String(input);
+    if (url.endsWith("/workers/scripts/example-worker/content/v2")) return new Response("export default { fetch(){ return new Response('old'); } }", { status: 200 });
+    if (url.endsWith("/workers/scripts/example-worker/content") && init.method === "PUT") {
+      const multipartRequest = new Request("https://cloudflare.test/upload", { method: "POST", body: init.body });
+      const form = await multipartRequest.formData();
+      uploaded = { metadata: JSON.parse(await form.get("metadata").text()), source: await form.get("worker.js").text(), type: form.get("worker.js").type };
+      return Response.json({ success: true, result: { id: "example-worker" } });
+    }
+    return Response.json({ success: false, errors: [{ message: "unexpected request" }] }, { status: 500 });
+  };
+  try {
+    const request = new Request("https://miniai-api.dallasaristarchos.workers.dev/api/cloudflare", {
+      method: "POST", headers: { Origin: origin, Authorization: "Bearer " + token, "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "worker_write", token: "cfat_" + "A".repeat(40), accountId: "a".repeat(32), scriptName: "example-worker", expectedContent: "export default { fetch(){ return new Response('old'); } }", content: "export default { fetch(){ return new Response('new'); } }" })
+    });
+    const response = await worker.fetch(request, env); const data = await response.json();
+    assert.equal(response.status, 200); assert.equal(data.ok, true); assert.equal(uploaded.metadata.main_module, "worker.js");
+    assert.match(uploaded.source, /Response\('new'\)/); assert.equal(uploaded.type, "application/javascript+module");
+  } finally { globalThis.fetch = originalFetch; }
+});
+
+
+test("GitHub file editor blocks secrets and workflow paths", async () => {
+  const { env } = mockEnv(); const originalFetch = globalThis.fetch; let calls = 0;
+  globalThis.fetch = async () => { calls++; return Response.json({}); };
+  try {
+    for (const path of [".env", "secrets.json", ".github/workflows/deploy.yml"]) {
+      const request = new Request("https://miniai-api.dallasaristarchos.workers.dev/api/github/files", {
+        method: "POST", headers: { Origin: origin, "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "read", token: "", owner: "octocat", repo: "demo", branch: "main", path })
+      });
+      const response = await worker.fetch(request, env); assert.equal(response.status, 400);
+    }
+    assert.equal(calls, 0);
+  } finally { globalThis.fetch = originalFetch; }
+});
+
+test("Cloudflare Worker editor refuses to replace multi-module Workers", async () => {
+  const { env } = mockEnv(); const originalFetch = globalThis.fetch; let writes = 0;
+  globalThis.fetch = async (input, init = {}) => {
+    const url = String(input);
+    if (url.endsWith("/workers/scripts/multi-worker/content/v2")) return new Response('import { helper } from "./helper.js"; export default { fetch(){ return helper(); } };', { status: 200 });
+    if (init.method === "PUT") writes++;
+    return Response.json({ success: true, result: {} });
+  };
+  try {
+    const request = new Request("https://miniai-api.dallasaristarchos.workers.dev/api/cloudflare", {
+      method: "POST", headers: { Origin: origin, Authorization: "Bearer " + token, "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "worker_write", token: "cfat_" + "A".repeat(40), accountId: "a".repeat(32), scriptName: "multi-worker", expectedContent: 'import { helper } from "./helper.js"; export default { fetch(){ return helper(); } };', content: 'import { helper } from "./helper.js"; export default { fetch(){ return helper(); } };' })
+    });
+    const response = await worker.fetch(request, env); const data = await response.json();
+    assert.equal(response.status, 409); assert.match(data.error, /additional local modules/i); assert.equal(writes, 0);
+  } finally { globalThis.fetch = originalFetch; }
+});

@@ -65,3 +65,10 @@ The regression tests use a mocked D1 database and do not modify production accou
 - Do not add API credentials, session tokens, or other secrets to GitHub or browser-side files.
 - Check the Pages build/deployment status and Worker health endpoint after publishing.
 - Cloudflare and model usage are subject to the limits of the account's current plan; do not promise unlimited use.
+
+
+## Code Studio
+
+The Workspace Hub includes a Code Studio for browsing GitHub repository folders, opening text files, editing source, previewing changes, and committing individual file updates with SHA conflict checks and explicit confirmation. It can also read and update Cloudflare Worker source through the authenticated Cloudflare connection, with an explicit deployment confirmation. Cloudflare Pages source is edited through its linked GitHub repository; Pages deployment assets are build output.
+
+GitHub editing requires a fine-grained token with Contents: Read and write. Cloudflare Worker editing requires a signed-in MiniAI account and a scoped Cloudflare API token with Workers Scripts read/edit permissions. Tokens are handled by the existing in-memory/session connection flows and are not placed in chat history.

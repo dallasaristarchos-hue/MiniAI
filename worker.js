@@ -694,6 +694,78 @@ export default {
       }
     }
 
+    if (url.pathname === "/api/github/files") {
+      if (!allowedOrigin) return json({ error: "Origin not allowed" }, 403, "");
+      if (request.method !== "POST") return json({ error: "Method not allowed" }, 405, allowedOrigin);
+      const ip = request.headers.get("CF-Connecting-IP") || "unknown";
+      const now = Date.now(); const rateKey = "github-files:" + ip;
+      const rate = hits.get(rateKey) || { start: now, count: 0 };
+      if (now - rate.start >= WINDOW_MS) { rate.start = now; rate.count = 0; }
+      rate.count++; hits.set(rateKey, rate);
+      if (rate.count > 45) return json({ error: "GitHub file access is temporarily rate limited. Wait a minute and retry." }, 429, allowedOrigin);
+      let body;
+      try { body = await readJsonBody(request, 1200000); } catch (error) { return json({ error: error instanceof RangeError ? "File request is too large (maximum 1.2 MB)." : "Invalid GitHub file request." }, error instanceof RangeError ? 413 : 400, allowedOrigin); }
+      const token = typeof body.token === "string" ? body.token.trim() : "";
+      const owner = typeof body.owner === "string" ? body.owner.trim() : "";
+      const repo = typeof body.repo === "string" ? body.repo.trim() : "";
+      const branch = typeof body.branch === "string" ? body.branch.trim() : "main";
+      const action = typeof body.action === "string" ? body.action : "";
+      const path = typeof body.path === "string" ? body.path.trim() : "";
+      if (token && !/^(?:github_pat_|ghp_)[A-Za-z0-9_]{20,250}$/.test(token)) return json({ error: "The GitHub token format is invalid." }, 400, allowedOrigin);
+      if (!/^[A-Za-z0-9._-]{1,39}$/.test(owner) || !/^[A-Za-z0-9._-]{1,100}$/.test(repo) || !/^[A-Za-z0-9._/-]{1,120}$/.test(branch) || branch.includes("..")) return json({ error: "Check the GitHub owner, repository, and branch." }, 400, allowedOrigin);
+      if (!["tree", "read", "write"].includes(action)) return json({ error: "Unsupported GitHub file action." }, 400, allowedOrigin);
+      if (action === "write" && !token) return json({ error: "Connect a GitHub token with Contents: Read and write before saving files." }, 401, allowedOrigin);
+      if (action === "tree" && path && !safeRepoPath(path)) return json({ error: "That folder path is not allowed." }, 400, allowedOrigin);
+      if ((action === "read" || action === "write") && (!safeRepoPath(path) || path.startsWith(".github/workflows/"))) return json({ error: "That file path is protected or invalid." }, 400, allowedOrigin);
+      const headers = { ...(token ? { Authorization: "Bearer " + token } : {}), Accept: "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28", "User-Agent": "MiniAI-File-Editor" };
+      const api = async (apiPath, method = "GET", payload = null) => {
+        const response = await fetch("https://api.github.com" + apiPath, { method, headers: { ...headers, ...(payload ? { "Content-Type": "application/json" } : {}) }, ...(payload ? { body: JSON.stringify(payload) } : {}) });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) { const error = new Error(data.message || `GitHub request failed (${response.status}).`); error.status = response.status; throw error; }
+        return data;
+      };
+      const apiPath = `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/contents`;
+      const pathUrl = path ? "/" + path.split("/").map(encodeURIComponent).join("/") : "";
+      try {
+        const repoInfo = await api(`/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}`);
+        if (!token && repoInfo.private) return json({ error: "This repository is private. Connect a GitHub token." }, 401, allowedOrigin);
+        if (action === "tree") {
+          const data = await api(`${apiPath}${pathUrl}?ref=${encodeURIComponent(branch)}`);
+          const entries = (Array.isArray(data) ? data : [data]).filter(item => item && typeof item.path === "string" && (item.type === "dir" || (item.type === "file" && safeRepoPath(item.path))));
+          return json({ entries: entries.map(item => ({ name: item.name, path: item.path, type: item.type, size: item.size || 0, sha: item.sha || "" })), branch, repository: repoInfo.full_name }, 200, allowedOrigin);
+        }
+        if (action === "read") {
+          const file = await api(`${apiPath}${pathUrl}?ref=${encodeURIComponent(branch)}`);
+          if (file.type !== "file" || typeof file.content !== "string") return json({ error: "GitHub did not return a text file. Binary files are not editable here." }, 415, allowedOrigin);
+          const binary = atob(file.content.replace(/\s/g, ""));
+          const bytes = Uint8Array.from(binary, c => c.charCodeAt(0));
+          if (bytes.length > 750000) return json({ error: "This file is too large for the in-browser editor (750 KB limit)." }, 413, allowedOrigin);
+          const content = new TextDecoder("utf-8", { fatal: false }).decode(bytes);
+          return json({ path: file.path, name: file.name, sha: file.sha, content, size: bytes.length, branch, htmlUrl: file.html_url }, 200, allowedOrigin);
+        }
+        const content = typeof body.content === "string" ? body.content : null;
+        const message = typeof body.message === "string" ? body.message.trim().slice(0, 120) : "";
+        const expectedSha = typeof body.sha === "string" ? body.sha : "";
+        if (content === null || !message) return json({ error: "File content and a commit message are required." }, 400, allowedOrigin);
+        const bytes = new TextEncoder().encode(content);
+        if (bytes.length > 750000) return json({ error: "Files larger than 750 KB cannot be saved in this editor." }, 413, allowedOrigin);
+        let current = null;
+        try { current = await api(`${apiPath}${pathUrl}?ref=${encodeURIComponent(branch)}`); }
+        catch (error) { if (error.status !== 404) throw error; }
+        if (current && current.type !== "file") return json({ error: "The selected path is not a file." }, 400, allowedOrigin);
+        if (current && expectedSha && current.sha !== expectedSha) return json({ error: "This file changed on GitHub since you opened it. Reload it before saving to avoid overwriting someone else's work." }, 409, allowedOrigin);
+        if (current && !expectedSha) return json({ error: "Reload the existing file before saving; its version identifier is missing." }, 409, allowedOrigin);
+        if (!current && expectedSha) return json({ error: "The file no longer exists on GitHub. Refresh the folder before saving." }, 409, allowedOrigin);
+        let binary = ""; for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+        const payload = { message, content: btoa(binary), branch, ...(current ? { sha: current.sha } : {}) };
+        const saved = await api(`${apiPath}${pathUrl}`, "PUT", payload);
+        return json({ ok: true, path, branch, sha: saved.content?.sha || "", commit: saved.commit?.sha || "", commitUrl: saved.commit?.html_url || "", htmlUrl: saved.content?.html_url || "" }, 200, allowedOrigin);
+      } catch (error) {
+        const status = Number(error?.status) >= 400 && Number(error.status) < 500 ? Number(error.status) : 502;
+        return json({ error: String(error?.message || "GitHub file operation failed.").slice(0, 300) }, status, allowedOrigin);
+      }
+    }
+
     if (url.pathname === "/api/cloudflare") {
       if (!allowedOrigin) return json({ error: "Origin not allowed" }, 403, "");
       if (request.method !== "POST") return json({ error: "Method not allowed" }, 405, allowedOrigin);
@@ -701,19 +773,31 @@ export default {
       const miniAccount = await authenticatedAccount(request, env);
       if (!miniAccount) return json({ error: "Sign in to MiniAI before connecting Cloudflare." }, 401, allowedOrigin);
       let body;
-      try { body = await readJsonBody(request, 12000); } catch { return json({ error: "Invalid Cloudflare request." }, 400, allowedOrigin); }
+      try { body = await readJsonBody(request, 1600000); } catch (error) { return json({ error: error instanceof RangeError ? "Cloudflare source request is too large (maximum 1.6 MB)." : "Invalid Cloudflare request." }, error instanceof RangeError ? 413 : 400, allowedOrigin); }
       const token = typeof body.token === "string" ? body.token.trim() : "";
       if (!/^[A-Za-z0-9._-]{20,256}$/.test(token)) return json({ error: "Enter a valid Cloudflare API token." }, 400, allowedOrigin);
       const action = typeof body.action === "string" ? body.action : "";
       if (action === "connect" && await authRateLimited(request, "cloudflare-connect")) return json({ error: "Too many connection attempts. Please wait five minutes." }, 429, allowedOrigin);
-      const cfRequest = async (path, method = "GET") => {
-        const response = await fetch("https://api.cloudflare.com/client/v4" + path, { method, headers: { Authorization: "Bearer " + token, Accept: "application/json", ...(method === "POST" ? { "Content-Type": "application/json" } : {}) }, ...(method === "POST" ? { body: "{}" } : {}) });
+      const cfRequest = async (path, method = "GET", payloadBody = null) => {
+        const response = await fetch("https://api.cloudflare.com/client/v4" + path, { method, headers: { Authorization: "Bearer " + token, Accept: "application/json", ...(payloadBody || method === "POST" ? { "Content-Type": "application/json" } : {}) }, ...(payloadBody ? { body: JSON.stringify(payloadBody) } : method === "POST" ? { body: "{}" } : {}) });
         const payload = await response.json().catch(() => ({}));
         if (!response.ok || payload.success === false) {
           const message = payload.errors?.[0]?.message || (response.status === 401 ? "Cloudflare rejected this API token." : `Cloudflare API request failed (${response.status}).`);
           const error = new Error(message); error.status = response.status; throw error;
         }
         return payload.result;
+      };
+      const cfWorkerSource = async (scriptName) => {
+        const headers = { Authorization: "Bearer " + token, Accept: "application/javascript, text/plain, */*" };
+        let response = await fetch("https://api.cloudflare.com/client/v4" + `/accounts/${accountId}/workers/scripts/${encodeURIComponent(scriptName)}/content/v2`, { headers });
+        if (!response.ok) {
+          const fallback = await fetch("https://api.cloudflare.com/client/v4" + `/accounts/${accountId}/workers/scripts/${encodeURIComponent(scriptName)}`, { headers });
+          if (!fallback.ok) { const payload = await fallback.json().catch(() => ({})); const error = new Error(payload.errors?.[0]?.message || `Cloudflare Worker download failed (${fallback.status}).`); error.status = fallback.status; throw error; }
+          response = fallback;
+        }
+        const source = await response.text();
+        if (!source || source.length > 750000) throw new Error("Worker source is empty or too large for the editor.");
+        return source;
       };
       const accountId = typeof body.accountId === "string" ? body.accountId.trim() : "";
       try {
@@ -734,6 +818,29 @@ export default {
         if (action === "dashboard") {
           const [workers, pages] = await Promise.all([cfRequest(`/accounts/${accountId}/workers/scripts`), cfRequest(`/accounts/${accountId}/pages/projects`) ]);
           return json({ workers: Array.isArray(workers) ? workers : [], pages: Array.isArray(pages) ? pages : [] }, 200, allowedOrigin);
+        }
+        if (action === "worker_read") {
+          const scriptName = typeof body.scriptName === "string" ? body.scriptName.trim() : "";
+          if (!/^[A-Za-z0-9._-]{1,100}$/.test(scriptName)) return json({ error: "Enter a valid Worker script name." }, 400, allowedOrigin);
+          const content = await cfWorkerSource(scriptName);
+          if (!content || content.length > 750000) return json({ error: "Worker source is empty or too large for the editor." }, 413, allowedOrigin);
+          return json({ ok: true, scriptName, content }, 200, allowedOrigin);
+        }
+        if (action === "worker_write") {
+          const scriptName = typeof body.scriptName === "string" ? body.scriptName.trim() : "";
+          const content = typeof body.content === "string" ? body.content : "";
+          if (!/^[A-Za-z0-9._-]{1,100}$/.test(scriptName) || !content.trim()) return json({ error: "Enter a valid Worker name and non-empty source code." }, 400, allowedOrigin);
+          if (new TextEncoder().encode(content).length > 750000) return json({ error: "Worker source exceeds the 750 KB editor limit." }, 413, allowedOrigin);
+          const current = await cfWorkerSource(scriptName);
+          if (typeof body.expectedContent === "string" && current !== body.expectedContent) return json({ error: "This Worker changed in Cloudflare since you opened it. Reload before deploying." }, 409, allowedOrigin);
+          if (/\bfrom\s*["'](?:\.\.?\/)|\bimport\s*["'](?:\.\.?\/)|\bimport\s*\(\s*["'](?:\.\.?\/)/.test(current)) return json({ error: "This Worker imports additional local modules. The single-file editor will not replace a multi-file Worker bundle; edit its linked source repository instead." }, 409, allowedOrigin);
+          const form = new FormData();
+          form.append("metadata", new Blob([JSON.stringify({ main_module: "worker.js" })], { type: "application/json" }), "metadata.json");
+          form.append("worker.js", new Blob([content], { type: "application/javascript+module" }), "worker.js");
+          const response = await fetch("https://api.cloudflare.com/client/v4" + `/accounts/${accountId}/workers/scripts/${encodeURIComponent(scriptName)}/content`, { method: "PUT", headers: { Authorization: "Bearer " + token }, body: form });
+          const payload = await response.json().catch(() => ({}));
+          if (!response.ok || payload.success === false) { const error = new Error(payload.errors?.[0]?.message || `Cloudflare Worker deployment failed (${response.status}).`); error.status = response.status; throw error; }
+          return json({ ok: true, scriptName, deployment: payload.result || null }, 200, allowedOrigin);
         }
         const projectName = typeof body.projectName === "string" ? body.projectName.trim() : "";
         if (!["deployments", "retry", "rollback"].includes(action)) return json({ error: "Unsupported Cloudflare action." }, 400, allowedOrigin);
