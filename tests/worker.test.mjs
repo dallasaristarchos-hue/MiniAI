@@ -348,6 +348,45 @@ test("Cloudflare Worker editor refuses to replace multi-module Workers", async (
 });
 
 
+test("FLUX.2 Klein image editing sends up to four ordered reference images", async () => {
+  const { env } = mockEnv();
+  let modelInput;
+  let calls = 0;
+  env.AI.run = async (model, input) => {
+    calls++;
+    if (calls === 1) return { response: "Combine the supplied references as requested." };
+    modelInput = input;
+    return { image: "LzlqLzRBQVFTa1pK" };
+  };
+  const response = await worker.fetch(new Request("https://miniai-api.dallasaristarchos.workers.dev/api/image", {
+    method: "POST",
+    headers: { Origin: origin, "Content-Type": "application/json" },
+    body: JSON.stringify({ mode: "edit", prompt: "Use image 1's style for image 0", images: ["data:image/png;base64,iVBORw0KGgo=", "data:image/webp;base64,UklGRg=="], width: 448, height: 448 })
+  }), env);
+  assert.equal(response.status, 200);
+  const form = await new Response(modelInput.multipart.body, { headers: { "content-type": modelInput.multipart.contentType } }).formData();
+  assert.equal(form.get("input_image_0").type, "image/png");
+  assert.equal(form.get("input_image_0").name, "reference-image");
+  assert.equal(form.get("input_image_1").type, "image/webp");
+  assert.equal(form.get("input_image_1").name, "reference-image-2");
+  assert.equal(form.has("input_image_2"), false);
+  assert.equal(calls, 2);
+});
+
+test("FLUX.2 Klein image editing rejects more than four reference images", async () => {
+  const { env } = mockEnv();
+  let aiCalls = 0;
+  env.AI.run = async () => { aiCalls++; return { response: "unexpected" }; };
+  const response = await worker.fetch(new Request("https://miniai-api.dallasaristarchos.workers.dev/api/image", {
+    method: "POST",
+    headers: { Origin: origin, "Content-Type": "application/json" },
+    body: JSON.stringify({ mode: "edit", prompt: "Combine these", images: Array(5).fill("data:image/png;base64,iVBORw0KGgo=") })
+  }), env);
+  assert.equal(response.status, 400);
+  assert.match((await response.json()).error, /1 and 4/i);
+  assert.equal(aiCalls, 0);
+});
+
 test("FLUX.2 Klein image editing uses the supplied photo and preserves its MIME type", async () => {
   const { env } = mockEnv();
   const calls = [];
