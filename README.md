@@ -17,6 +17,8 @@ https://miniai-ai.pages.dev
 - Voice dictation and browser text-to-speech where supported
 - Accounts, one-time ratings, response reporting, and account deletion
 - Privacy and account-deletion information at `/privacy.html` and `/delete-account.html`
+- Workspace Hub with a reusable prompt library, custom prompts, full-history search, pinned chats, rename/duplicate actions, and JSON backup import/export
+- Keyboard shortcuts: Ctrl/⌘ + Shift + P opens Workspace Hub; Ctrl/⌘ + Shift + E exports all conversations
 - Installable PWA with an offline app shell
 
 Some browser features depend on the device and browser. Live lookup and AI features depend on upstream services and their current availability and usage limits.
