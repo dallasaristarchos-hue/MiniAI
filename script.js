@@ -164,30 +164,30 @@ document.querySelectorAll("[data-image-mode]").forEach(button=>button.addEventLi
   studioImageMode=button.dataset.imageMode;
   document.querySelectorAll("[data-image-mode]").forEach(b=>b.classList.toggle("active",b===button));
   $("#editImageUpload").hidden=studioImageMode!=="edit";
-  $("#photoControls").hidden=studioImageMode!=="edit"||!studioImageData;$("#imageAspectWrap").hidden=studioImageMode==="edit";
+  $("#imageAspectWrap").hidden=studioImageMode==="edit";
   $("#makeImage").textContent=studioImageMode==="edit"?"✦ Apply AI photo edit":"✦ Generate image";
   $("#imagePrompt").placeholder=studioImageMode==="edit"?"Describe exactly what you want changed in this photo…":"A dreamy purple city at sunset, cinematic lighting…";
   $("#imageResult").hidden=true;
 }));
-[["photoBrightness","brightnessValue","%"],["photoContrast","contrastValue","%"],["photoSaturation","saturationValue","%"],["photoBlur","blurValue","px"]].forEach(([id,label,suffix])=>$("#"+id).addEventListener("input",e=>{$("#"+label).textContent=e.target.value+suffix}));
 studioImageFile.addEventListener("change",()=>{
   const file=studioImageFile.files?.[0];if(!file)return;
   if(file.size>5*1024*1024){showToast("Choose an image under 5 MB.");studioImageFile.value="";return;}
   if(!["image/jpeg","image/png","image/webp"].includes(file.type)){showToast("Use a JPG, PNG or WebP photo.");studioImageFile.value="";return;}
-  const reader=new FileReader();reader.onload=()=>{studioImageData=String(reader.result);studioImagePreview.src=studioImageData;studioImagePreview.hidden=false;$("#photoControls").hidden=studioImageMode!=="edit";$("#imageStatus").textContent="Photo ready. Describe your changes and apply an AI edit.";};reader.onerror=()=>showToast("Couldn't read that photo. Try another image.");reader.readAsDataURL(file);
+  const reader=new FileReader();reader.onload=()=>{studioImageData=String(reader.result);studioImagePreview.src=studioImageData;studioImagePreview.hidden=false;$("#imageStatus").textContent="Photo ready. Describe your changes and apply an AI edit.";};reader.onerror=()=>showToast("Couldn't read that photo. Try another image.");reader.readAsDataURL(file);
 });
 async function makeEditablePhoto(){
+  // FLUX.2 Klein reference images must stay below 512x512. Resize only;
+  // do not apply browser-side filters, rotation, color changes, or effects.
   const image=new Image();image.src=studioImageData;
   await new Promise((resolve,reject)=>{image.onload=resolve;image.onerror=()=>reject(new Error("Couldn't open the selected photo."));});
-  const angle=Number($("#photoRotate").value)||0,swap=angle===90||angle===270;
-  const sourceWidth=swap?image.height:image.width,sourceHeight=swap?image.width:image.height;
-  const scale=Math.min(448/Math.max(sourceWidth,sourceHeight),1);
-  const canvas=document.createElement("canvas");canvas.width=Math.max(1,Math.round(sourceWidth*scale));canvas.height=Math.max(1,Math.round(sourceHeight*scale));
-  const ctx=canvas.getContext("2d");if(!ctx)throw new Error("Photo editing isn't supported in this browser.");
-  ctx.translate(canvas.width/2,canvas.height/2);ctx.rotate(angle*Math.PI/180);
-  ctx.filter=`brightness(${$("#photoBrightness").value}%) contrast(${$("#photoContrast").value}%) saturate(${$("#photoSaturation").value}%) blur(${$("#photoBlur").value}px)`;
-  ctx.drawImage(image,-image.width*scale/2,-image.height*scale/2,image.width*scale,image.height*scale);
-  return {data:canvas.toDataURL("image/jpeg",.88),width:canvas.width,height:canvas.height};
+  const scale=Math.min(448/Math.max(image.naturalWidth,image.naturalHeight),1);
+  const canvas=document.createElement("canvas");
+  canvas.width=Math.max(1,Math.round(image.naturalWidth*scale));
+  canvas.height=Math.max(1,Math.round(image.naturalHeight*scale));
+  const ctx=canvas.getContext("2d");
+  if(!ctx)throw new Error("Photo editing isn't supported in this browser.");
+  ctx.drawImage(image,0,0,canvas.width,canvas.height);
+  return {data:canvas.toDataURL("image/jpeg",.9),width:canvas.width,height:canvas.height};
 }
 $("#makeImage").addEventListener("click",async()=>{
   const prompt=$("#imagePrompt").value.trim();

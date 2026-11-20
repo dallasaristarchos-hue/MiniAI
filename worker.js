@@ -963,8 +963,9 @@ export default {
       let imageMime = "image/jpeg";
       if (mode === "edit") {
         const source = typeof body.image === "string" ? body.image : typeof body.imageData === "string" ? body.imageData : "";
-        const match = source.match(/^data:image\/(?:png|jpeg|jpg|webp);base64,([A-Za-z0-9+/=\r\n]+)$/i);
-        imageB64 = match ? match[1].replace(/\s/g, "") : (typeof body.image_b64 === "string" ? body.image_b64.replace(/\s/g, "") : "");
+        const match = source.match(/^data:(image\/(?:png|jpeg|jpg|webp));base64,([A-Za-z0-9+/=\r\n]+)$/i);
+        if (match) imageMime = match[1].toLowerCase().replace("image/jpg", "image/jpeg");
+        imageB64 = match ? match[2].replace(/\s/g, "") : (typeof body.image_b64 === "string" ? body.image_b64.replace(/\s/g, "") : "");
         if (!imageB64 || imageB64.length > 7 * 1024 * 1024 || !/^[A-Za-z0-9+/]+={0,2}$/.test(imageB64)) return json({ error: "Choose a valid JPG, PNG or WebP photo under 5 MB." }, 400, allowedOrigin);
       }
       try {

@@ -346,3 +346,29 @@ test("Cloudflare Worker editor refuses to replace multi-module Workers", async (
     assert.equal(response.status, 409); assert.match(data.error, /additional local modules/i); assert.equal(writes, 0);
   } finally { globalThis.fetch = originalFetch; }
 });
+
+
+test("FLUX.2 Klein image editing uses the supplied photo and preserves its MIME type", async () => {
+  const { env } = mockEnv();
+  const calls = [];
+  env.AI.run = async (model, input) => {
+    calls.push({ model, input });
+    if (calls.length === 1) return { response: "Change only the requested background detail." };
+    assert.equal(model, "@cf/black-forest-labs/flux-2-klein-4b");
+    const form = await new Response(input.multipart.body, { headers: { "content-type": input.multipart.contentType } }).formData();
+    assert.equal(form.get("prompt"), "Change only the requested background detail.");
+    assert.equal(form.get("width"), "448");
+    assert.equal(form.get("height"), "336");
+    assert.equal(form.get("input_image_0").type, "image/png");
+    assert.equal(form.get("input_image_0").name, "reference-image");
+    return { image: "LzlqLzRBQVFTa1pK" };
+  };
+  const response = await worker.fetch(new Request("https://miniai-api.dallasaristarchos.workers.dev/api/image", {
+    method: "POST",
+    headers: { Origin: origin, "Content-Type": "application/json" },
+    body: JSON.stringify({ mode: "edit", prompt: "Change only the background detail", image: "data:image/png;base64,iVBORw0KGgo=", width: 448, height: 336 })
+  }), env);
+  assert.equal(response.status, 200);
+  assert.equal((await response.json()).mode, "edit");
+  assert.equal(calls.length, 2);
+});
